@@ -85,32 +85,31 @@ export default function Home() {
 
   async function downloadReviewPdf() {
     if (!selected) return;
-    const review = document.getElementById('review-pdf');
-    if (!review) return;
+    const header = document.getElementById('review-header');
+    const questionCards = Array.from(document.querySelectorAll<HTMLElement>('.pdf-question'));
+    if (!header || !questionCards.length) return;
     setPdfBusy(true);
     try {
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
-      const canvas = await html2canvas(review, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageWidth = 190;
-      const pageHeight = 277;
-      const sliceHeight = Math.floor(canvas.width * (pageHeight / pageWidth));
-      let offset = 0;
-      let page = 0;
-      while (offset < canvas.height) {
-        const height = Math.min(sliceHeight, canvas.height - offset);
-        const slice = document.createElement('canvas');
-        slice.width = canvas.width;
-        slice.height = height;
-        const context = slice.getContext('2d');
-        if (!context) throw new Error('PDF canvas unavailable');
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, slice.width, slice.height);
-        context.drawImage(canvas, 0, offset, canvas.width, height, 0, 0, canvas.width, height);
-        if (page > 0) pdf.addPage();
-        pdf.addImage(slice.toDataURL('image/jpeg', 0.94), 'JPEG', 10, 10, pageWidth, (height / canvas.width) * pageWidth);
-        offset += height;
-        page += 1;
+      const bottom = 287;
+      let y = 10;
+      const addElement = async (element: HTMLElement, gap = 5) => {
+        const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+        const height = (canvas.height / canvas.width) * pageWidth;
+        if (y > 10 && y + height > bottom) { pdf.addPage(); y = 10; }
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.96), 'JPEG', 10, y, pageWidth, height);
+        y += height + gap;
+      };
+      await addElement(header, 7);
+      for (const card of questionCards) await addElement(card, 5);
+      const pages = pdf.getNumberOfPages();
+      for (let page = 1; page <= pages; page += 1) {
+        pdf.setPage(page);
+        pdf.setFontSize(8);
+        pdf.setTextColor(130, 140, 155);
+        pdf.text(`${page} / ${pages}`, 200, 292, { align: 'right' });
       }
       const safeTitle = selected.title.replace(/[^가-힣a-zA-Z0-9_-]/g, '_');
       pdf.save(`${safeTitle}_${student.studentId}_${student.name}_오답노트.pdf`);
@@ -130,9 +129,9 @@ export default function Home() {
 
     {view === 'quiz' && selected && <section className="mx-auto max-w-3xl px-5 py-7"><div className="flex items-center justify-between text-sm"><button className="back" onClick={() => setView('sets')}>← 나가기</button><b>{current + 1} / {selected.questions.length}</b></div><div className="mt-5 h-2 overflow-hidden rounded-full bg-[#dfe5ee]"><div className="h-full rounded-full bg-[#176b5b] transition-all" style={{width:`${((current + 1) / selected.questions.length) * 100}%`}}/></div><div className="mt-6 card p-6 md:p-8"><p className="eyebrow">{selected.title}</p><h1 className="mt-3 text-xl font-extrabold leading-8"><span className="mr-2 text-[#176b5b]">Q{current + 1}.</span>{selected.questions[current].text}</h1><div className="mt-7 grid gap-3">{selected.questions[current].options.map((option, i) => <button key={option} onClick={() => setAnswers({...answers, [selected.questions[current].id]:i})} className={`option ${answers[selected.questions[current].id] === i ? 'option-selected' : ''}`}><span>{i + 1}</span>{option}</button>)}</div></div><div className="mt-5 flex gap-3"><button disabled={current === 0} onClick={() => setCurrent(current - 1)} className="secondary disabled:opacity-40">이전</button>{current < selected.questions.length - 1 ? <button onClick={() => setCurrent(current + 1)} className="primary">다음 문제</button> : <button onClick={submitQuiz} className="primary">답안 제출하기</button>}</div></section>}
 
-    {view === 'result' && selected && submitted && <section className="mx-auto max-w-3xl px-5 py-12"><div className="card p-8 text-center"><div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#e1f3ed] text-4xl">✓</div><p className="eyebrow mt-6">제출 완료</p><h1 className="mt-2 text-3xl font-black">수고했어요, {student.name}님!</h1><p className="mt-3 text-[#667085]">{selected.title} 답안이 안전하게 저장되었습니다.</p><div className="mx-auto my-7 grid h-36 w-36 place-items-center rounded-full border-[10px] border-[#dff0eb]"><div><b className="text-4xl text-[#176b5b]">{score}</b><span className="text-lg text-[#7a8496]"> / {selected.questions.length}</span><small className="mt-1 block text-[#7a8496]">정답 수</small></div></div><div className="grid gap-3 sm:grid-cols-2"><button onClick={downloadReviewPdf} disabled={pdfBusy} className="primary disabled:opacity-60">{pdfBusy ? 'PDF 만드는 중…' : '오답노트 PDF 받기'}</button><button onClick={() => setView('sets')} className="secondary">다른 문제 풀기</button></div><button onClick={reset} className="mt-3 w-full py-3 text-sm font-bold text-[#667085]">처음으로 돌아가기</button></div>
-      <div id="review-pdf" className="mt-7 rounded-[1.35rem] bg-white p-5 text-left md:p-8"><div className="border-b border-[#dfe5ee] pb-6"><p className="eyebrow">개인 오답노트</p><h2 className="mt-2 text-2xl font-black">{selected.title}</h2><div className="mt-3 grid gap-1 text-sm text-[#667085] sm:grid-cols-2"><p>학교: {student.school}</p><p>학번: {student.studentId}</p><p>이름: {student.name}</p><p>결과: {score}/{selected.questions.length}점 · 오답 {wrongQuestions.length}개</p></div></div>
-        {wrongQuestions.length === 0 ? <div className="py-12 text-center"><p className="text-4xl">🎉</p><h3 className="mt-3 text-xl font-black">모든 문제를 맞혔어요!</h3><p className="mt-2 text-sm text-[#667085]">완벽하게 학습을 마쳤습니다.</p></div> : <div className="mt-6 grid gap-5">{wrongQuestions.map((q) => { const selectedAnswer = answers[q.id]; const sourceNumber = q.id.split('-').pop(); return <article key={q.id} className="review-question"><div className="flex items-start justify-between gap-3"><h3 className="font-extrabold leading-7"><span className="mr-2 text-red-600">{sourceNumber}번</span>{q.text}</h3><span className="shrink-0 rounded-full bg-red-50 px-3 py-1 text-xs font-extrabold text-red-600">오답</span></div><ol className="mt-4 grid gap-2">{q.options.map((option, index) => <li key={option} className={`review-option ${index === q.answer ? 'review-correct' : ''} ${index === selectedAnswer && index !== q.answer ? 'review-wrong' : ''}`}><span>{index + 1}</span><p>{option}</p>{index === q.answer && <b>정답</b>}{index === selectedAnswer && index !== q.answer && <b>내 답</b>}</li>)}</ol><div className="mt-4 grid gap-2 rounded-xl bg-[#f7f9fc] p-4 text-sm sm:grid-cols-2"><p><b>내가 선택한 답:</b> {selectedAnswer === undefined ? '미응답' : `${selectedAnswer + 1}번 ${q.options[selectedAnswer]}`}</p><p className="text-[#176b5b]"><b>정답:</b> {q.answer + 1}번 {q.options[q.answer]}</p></div></article>; })}</div>}
+    {view === 'result' && selected && submitted && <section className="mx-auto max-w-3xl px-5 py-12"><div className="card p-8 text-center"><div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#e1f3ed] text-4xl">✓</div><p className="eyebrow mt-6">제출 완료</p><h1 className="mt-2 text-3xl font-black">수고했어요, {student.name}님!</h1><p className="mt-3 text-[#667085]">{selected.title} 답안이 안전하게 저장되었습니다.</p><div className="mx-auto my-7 grid h-36 w-36 place-items-center rounded-full border-[10px] border-[#dff0eb]"><div><b className="text-4xl text-[#176b5b]">{score}</b><span className="text-lg text-[#7a8496]"> / {selected.questions.length}</span><small className="mt-1 block text-[#7a8496]">정답 수</small></div></div><div className="grid gap-3 sm:grid-cols-2"><button onClick={downloadReviewPdf} disabled={pdfBusy} className="primary disabled:opacity-60">{pdfBusy ? 'PDF 만드는 중…' : '전체 문제 PDF 받기'}</button><button onClick={() => setView('sets')} className="secondary">다른 문제 풀기</button></div><button onClick={reset} className="mt-3 w-full py-3 text-sm font-bold text-[#667085]">처음으로 돌아가기</button></div>
+      <div className="mt-7 rounded-[1.35rem] bg-white p-5 text-left md:p-8"><div id="review-header" className="border-b border-[#dfe5ee] bg-white pb-6"><p className="eyebrow">전체 문제 복습노트</p><h2 className="mt-2 text-2xl font-black">{selected.title}</h2><div className="mt-3 grid gap-1 text-sm text-[#667085] sm:grid-cols-2"><p>학교: {student.school}</p><p>학번: {student.studentId}</p><p>이름: {student.name}</p><p>결과: {score}/{selected.questions.length}점 · 오답 {wrongQuestions.length}개</p></div><div className="mt-4 flex flex-wrap gap-3 text-xs font-bold"><span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">파랑: 정답</span><span className="rounded-full bg-red-50 px-3 py-1 text-red-600">빨강: 틀리게 선택한 답</span></div></div>
+        <div className="mt-6 grid gap-5">{selected.questions.map((q) => { const selectedAnswer = answers[q.id]; const sourceNumber = q.id.split('-').pop(); const isCorrect = selectedAnswer === q.answer; return <article key={q.id} className="review-question pdf-question bg-white"><div className="flex items-start justify-between gap-3"><h3 className="font-extrabold leading-7"><span className={`mr-2 ${isCorrect ? 'text-blue-700' : 'text-red-600'}`}>{sourceNumber}번</span>{q.text}</h3><span className={`shrink-0 rounded-full px-3 py-1 text-xs font-extrabold ${isCorrect ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-600'}`}>{isCorrect ? '정답' : '오답'}</span></div><ol className="mt-4 grid gap-2">{q.options.map((option, index) => <li key={option} className={`review-option ${index === q.answer ? 'review-correct' : ''} ${index === selectedAnswer && index !== q.answer ? 'review-wrong' : ''}`}><span>{index + 1}</span><p>{option}</p>{index === q.answer && <b>{index === selectedAnswer ? '내 답 · 정답' : '정답'}</b>}{index === selectedAnswer && index !== q.answer && <b>내 답</b>}</li>)}</ol><div className="mt-4 grid gap-2 rounded-xl bg-[#f7f9fc] p-4 text-sm sm:grid-cols-2"><p className={isCorrect ? 'text-blue-700' : 'text-red-600'}><b>내가 선택한 답:</b> {selectedAnswer === undefined ? '미응답' : `${selectedAnswer + 1}번 ${q.options[selectedAnswer]}`}</p><p className="text-blue-700"><b>정답:</b> {q.answer + 1}번 {q.options[q.answer]}</p></div></article>; })}</div>
         <p className="mt-8 border-t border-[#dfe5ee] pt-4 text-center text-xs text-[#8a94a6]">캠퍼스 문제은행 · 자율학습 오답노트</p>
       </div>
     </section>}

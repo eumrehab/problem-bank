@@ -43,7 +43,7 @@ button { cursor:pointer; }
 .review-option span { display:grid; width:1.55rem; height:1.55rem; flex:none; place-items:center; border-radius:50%; background:#eef1f5; color:#667085; font-size:.75rem; font-weight:800; }
 .review-option p { flex:1; }
 .review-option b { font-size:.72rem; }
-.review-correct { border-color:#77b6a7; background:#ecf8f4; color:#12594c; }
-.review-correct span { background:#176b5b; color:#fff; }
+.review-correct { border-color:#7aa7ef; background:#eff6ff; color:#1d4ed8; }
+.review-correct span { background:#2563eb; color:#fff; }
 .review-wrong { border-color:#efaaaa; background:#fff2f2; color:#b42318; }
 .review-wrong span { background:#d92d20; color:#fff; }
