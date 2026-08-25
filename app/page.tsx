@@ -7,14 +7,41 @@ type QuizSet = { id: string; title: string; subject: string; description: string
 type Student = { school: string; studentId: string; name: string };
 
 const initialSets: QuizSet[] = [
-  { id: 'public-health-01', title: '1회차 공중보건', subject: '공중보건', description: '역학·환경보건·보건행정 핵심 개념', published: true, questions: [
-    { id: 'ph-1', text: '질병 발생의 원인과 분포를 연구하는 학문은?', options: ['보건행정학', '역학', '병리학', '의료사회학'], answer: 1 },
-    { id: 'ph-2', text: '일정 기간 새롭게 발생한 환자의 비율을 나타내는 지표는?', options: ['유병률', '치명률', '발생률', '사망률'], answer: 2 },
-    { id: 'ph-3', text: 'WHO가 제시한 건강의 정의에 포함되지 않는 것은?', options: ['신체적 안녕', '정신적 안녕', '사회적 안녕', '경제적 풍요'], answer: 3 },
+  { id: '2025-public-health', title: '2025년도 국시 - 공중보건', subject: '공중보건', description: '제53회 작업치료사 국가시험 31~42번', published: true, questions: [
+    { id: '2025-31', text: '다음 설명에 해당하는 질병 발생설은? 인체는 4액체(혈액, 점액, 황담즙, 흑담즙)로 구성되며, 나쁜 공기에 노출되면 4액체의 균형이 깨지면서 질병이 발생한다.', options: ['종교설', '점성설', '장기설', '세균설', '접촉감염설'], answer: 2 },
+    { id: '2025-32', text: '콜레라 등 외래 감염병의 국내 침입으로 돌발적 유행을 나타내는 역학적 특성은?', options: ['추세변화', '주기변화', '계절변화', '단기변화', '불규칙변화'], answer: 4 },
+    { id: '2025-33', text: '질병 발생의 역학적 인자들 중 다음에 해당하는 병인 형태는? 가장 많이 알려진 병인이며, 박테리아·바이러스·리케차·곰팡이·기생충 등 살아 있는 미생물이다.', options: ['물리적 병인', '정신적 병인', '생물학적 병인', '생화학적 병인', '영양소적 병인'], answer: 2 },
+    { id: '2025-34', text: '각종 감염병에 감염된 후 형성되는 면역은?', options: ['선천면역', '자연능동면역', '자연수동면역', '인공능동면역', '인공수동면역'], answer: 1 },
+    { id: '2025-35', text: '1948년에 설립되었고 본부가 스위스 제네바에 있으며, 국제 간 감염병 검역 대책·모자보건·재해예방·환경위생 개선 등을 수행하는 국제기구는?', options: ['세계보건기구', '국제노동기구', '유엔아동기금', '유엔환경계획', '국제적십자위원회'], answer: 0 },
+    { id: '2025-36', text: '조직원의 집단적 노력을 질서 정연하게 배정하고 공동 목표를 달성하기 위한 행동 통일의 수단과 과정을 뜻하는 Gulick의 조직관리 원칙은?', options: ['목적의 원칙', '분업의 원칙', '일치의 원칙', '조정의 원칙', '명령통일의 원칙'], answer: 3 },
+    { id: '2025-37', text: '보건복지부 소속기관인 것은?', options: ['국립재활원', '국립환경과학원', '한국장애인개발원', '한국장애인고용공단', '한국건강가정진흥원'], answer: 0 },
+    { id: '2025-38', text: '우리나라 사회보험의 1차 사회 안전망으로, 질병·부상에 대한 예방·진단·진료·재활·출산·사망 및 건강증진에 보험급여를 제공하는 사회보장제도는?', options: ['고용보험', '국민연금', '국민건강보험', '국민기초생활보장', '노인장기요양보험'], answer: 2 },
+    { id: '2025-39', text: 'Blacker의 인구변환 5단계 중 출생률이 사망률보다 낮아져 인구가 감소하며 북유럽·북아메리카·뉴질랜드·일본 등이 해당되는 단계는?', options: ['고위정지기', '초기확장기', '후기확장기', '저위정지기', '감퇴기'], answer: 4 },
+    { id: '2025-40', text: '세포의 정상적인 대사 작용에 필수적인 조절소이고, 부족하면 여러 결핍 증상이 나타나며, 수용성과 지용성이 있는 영양소는?', options: ['식염', '지질', '비타민', '단백질', '탄수화물'], answer: 2 },
+    { id: '2025-41', text: '측정 대상의 특성이나 성질을 나타내며 질적 수준이 가장 낮고, 성별·직업·출신 지역·인종·종교 등이 예인 척도는?', options: ['명목척도', '서열척도', '간격척도', '등간척도', '비율척도'], answer: 0 },
+    { id: '2025-42', text: '어떤 연도의 영아사망수를 신생아사망수로 나눈 값이며, 1에 가까우면 그 지역의 건강 수준이 높음을 의미하는 보건 통계지표는?', options: ['사산율', 'α-index', '보통사망률', '영아사망률', '신생아사망률'], answer: 1 },
   ]},
-  { id: 'medical-law-01', title: '1회차 의료법규', subject: '의료법규', description: '의료법 기본 원칙과 의료인의 의무', published: true, questions: [
-    { id: 'ml-1', text: '의료법상 의료인에 해당하지 않는 사람은?', options: ['의사', '간호사', '약사', '조산사'], answer: 2 },
-    { id: 'ml-2', text: '의료인이 진료기록부를 거짓으로 작성해서는 안 되는 이유로 가장 적절한 것은?', options: ['광고 제한', '진료의 연속성과 환자 보호', '수가 계산', '병상 관리'], answer: 1 },
+  { id: '2025-medical-law', title: '2025년도 국시 - 의료관계법규', subject: '의료관계법규', description: '제53회 작업치료사 국가시험 71~90번', published: true, questions: [
+    { id: '2025-71', text: '「의료법」상 보건복지부장관의 면허를 받은 의료인으로만 나열된 것은?', options: ['한의사, 약사', '치과의사, 약사', '의사, 치과의사', '의사, 간호조무사', '조산사, 간호조무사'], answer: 2 },
+    { id: '2025-72', text: '「의료법」상 의사·치과의사·한의사 및 조산사가 사체를 검안하여 변사한 것으로 의심되는 때에는 누구에게 신고하여야 하는가?', options: ['질병관리청장', '보건복지부장관', '사체의 소재지를 관할하는 보건소장', '사체의 소재지를 관할하는 경찰서장', '사체의 소재지를 관할하는 시장·군수·구청장'], answer: 3 },
+    { id: '2025-73', text: '「의료법」상 의료에 관한 광고를 할 수 없는 자는?', options: ['의사', '약사', '한의사', '의료기관의 장', '의료기관 개설자'], answer: 1 },
+    { id: '2025-74', text: '「의료법」상 종합병원 중에서 중증질환에 대하여 난이도가 높은 의료행위를 전문적으로 하는 의료기관은?', options: ['전문병원', '요양병원', '한방병원', '치과병원', '상급종합병원'], answer: 4 },
+    { id: '2025-75', text: '「의료법」상 의료인이 의료기관 개설자가 될 수 없는 자에게 고용되어 의료행위를 한 경우 면허자격을 몇 년의 범위에서 정지시킬 수 있는가?', options: ['1년', '2년', '3년', '4년', '5년'], answer: 0 },
+    { id: '2025-76', text: '「의료법」상 한지 의료인이 허가지역을 다른 시·도로 변경하려는 경우 누구의 허가를 받아야 하는가?', options: ['질병관리청장', '보건복지부장관', '관할하는 보건소장', '의료인 단체 중앙회의 장', '관할하는 시장·군수·구청장'], answer: 1 },
+    { id: '2025-77', text: '「의료기사 등에 관한 법률」상 면허 결격사유에 해당되지 않는 것은?', options: ['피성년후견인', '피한정후견인', '마약류 중독자', '정신질환자로 전문의가 의료기사등으로서 적합하다고 인정한 자', '국민건강보험법 위반으로 금고 이상의 실형을 선고받고 집행이 끝나지 않은 자'], answer: 3 },
+    { id: '2025-78', text: '「의료기사 등에 관한 법률」상 면허취소 사유에 해당되는 것은?', options: ['면허를 대여한 경우', '의료기사등의 업무를 벗어나는 행위', '검사 결과를 사실과 다르게 표시하는 행위', '윤리적으로 허용되지 아니하는 방법으로 업무를 한 행위', '의사나 치과의사의 지도를 받지 아니하고 의료기사의 업무를 한 행위'], answer: 0 },
+    { id: '2025-79', text: '「의료기사 등에 관한 법률」상 보수교육실시기관의 보수교육 내용과 운영에 대하여 평가할 수 있는 자는?', options: ['특별자치시장', '보건복지부장관', '시장·군수·구청장', '의료기사 중앙회의 장', '보수교육실시기관의 장'], answer: 1 },
+    { id: '2025-80', text: '「의료기사 등에 관한 법률」상 작업치료사가 업무상 알게 된 비밀을 누설했을 때 벌칙은?', options: ['100만원 이하의 과태료', '500만원 이하의 과태료', '500만원 이하의 벌금', '3년 이하의 징역 또는 3천만원 이하의 벌금', '5년 이하의 징역 또는 5천만원 이하의 벌금'], answer: 3 },
+    { id: '2025-81', text: '「장애인복지법」상 신체의 일부를 잃거나 관절장애가 있는 장애인은?', options: ['지체장애인', '신장장애인', '지적장애인', '시각장애인', '뇌병변장애인'], answer: 0 },
+    { id: '2025-82', text: '「장애인복지법」상 장애인복지상담원으로 임용될 수 있는 자는?', options: ['언어재활사', '점역·교정사', '한국수어 통역사', '장애인재활상담사', '특수학교의 교사자격증 소지자'], answer: 4 },
+    { id: '2025-83', text: '「장애인복지법」상 장애인복지관 및 장애인 주간이용시설에 해당되는 장애인복지시설은?', options: ['장애인 쉼터', '장애인 거주시설', '장애인 의료재활시설', '장애인 직업재활시설', '장애인 지역사회재활시설'], answer: 4 },
+    { id: '2025-84', text: '「장애인복지법」상 장애인이 장애 예방·보완과 기능 향상을 위하여 사용하는 의지·보조기 및 일상생활 편의 증진을 위해 사용하는 생활용품은?', options: ['장애인생산품', '장애인보조기구', '장애인편의용품', '장애인자조도구', '장애인편의증진기구'], answer: 1 },
+    { id: '2025-85', text: '「정신건강증진 및 정신질환자 복지서비스 지원에 관한 법률」상 정신건강작업치료사가 제공할 수 있는 개별 업무는?', options: ['심리평가', '생활훈련', '작업 수행 평가', '정신재활시설의 운영', '사회서비스 지원 등에 대한 조사'], answer: 2 },
+    { id: '2025-86', text: '「정신건강증진 및 정신질환자 복지서비스 지원에 관한 법률」상 정신의료기관의 장은 응급입원을 의뢰받은 사람에게 공휴일을 제외하고 며칠 이내의 기간 동안 응급입원을 시킬 수 있는가?', options: ['3일', '5일', '7일', '10일', '15일'], answer: 0 },
+    { id: '2025-87', text: '「정신건강증진 및 정신질환자 복지서비스 지원에 관한 법률」상 정신의료기관이 구성하는 협의체의 결정 없이 제공할 수 있는 치료 또는 요법은?', options: ['정신외과요법', '전기충격요법', '작업치료', '마취하최면요법', '인슐린혼수요법'], answer: 2 },
+    { id: '2025-88', text: '「노인복지법」상 노인의 보건 및 복지에 관한 실태조사를 실시하고 그 결과를 공표하는 자는?', options: ['대통령', '보건소장', '질병관리청장', '지방자치단체장', '보건복지부장관'], answer: 4 },
+    { id: '2025-89', text: '「노인복지법」상 노인에 대한 사회적 관심과 공경의식을 높이기 위한 노인의 날은?', options: ['4월 20일', '5월 8일', '6월 15일', '10월 2일', '10월 10일'], answer: 3 },
+    { id: '2025-90', text: '「노인복지법」상 노인들에게 가정과 같은 주거여건과 급식, 그 밖에 일상생활에 필요한 편의를 제공함을 목적으로 하는 노인주거복지시설은?', options: ['양로시설', '노인요양시설', '노인복지주택', '노인공동생활가정', '노인요양공동생활가정'], answer: 3 },
   ]},
 ];
 
@@ -31,7 +58,7 @@ export default function Home() {
   const [toast, setToast] = useState('');
   const [newSet, setNewSet] = useState({ title: '', subject: '', description: '', questions: '' });
 
-  useEffect(() => { const saved = localStorage.getItem('campus-quiz-sets'); if (saved) { try { setSets(JSON.parse(saved)); } catch {} } }, []);
+  useEffect(() => { const saved = localStorage.getItem('campus-quiz-sets-2025'); if (saved) { try { setSets(JSON.parse(saved)); } catch {} } }, []);
   const selected = useMemo(() => sets.find((s) => s.id === selectedId), [sets, selectedId]);
   const score = selected ? selected.questions.filter((q) => answers[q.id] === q.answer).length : 0;
   const notify = (message: string) => { setToast(message); setTimeout(() => setToast(''), 2600); };
@@ -50,7 +77,7 @@ export default function Home() {
     const lines = newSet.questions.split('\n').map((v) => v.trim()).filter(Boolean);
     const questions: Question[] = lines.map((line, i) => { const parts = line.split('|').map((v) => v.trim()); return { id: `custom-${Date.now()}-${i}`, text: parts[0] || `문제 ${i + 1}`, options: parts.slice(1, 5), answer: Math.max(0, Number(parts[5] || 1) - 1) }; }).filter((q) => q.options.length === 4);
     if (!newSet.title || !newSet.subject || !questions.length) return notify('제목, 과목과 올바른 문제를 입력해 주세요.');
-    const next = [...sets, { id: `set-${Date.now()}`, ...newSet, questions, published: true }]; setSets(next); localStorage.setItem('campus-quiz-sets', JSON.stringify(next)); setNewSet({ title: '', subject: '', description: '', questions: '' }); notify('새 문제 세트가 공개되었습니다.');
+    const next = [...sets, { id: `set-${Date.now()}`, ...newSet, questions, published: true }]; setSets(next); localStorage.setItem('campus-quiz-sets-2025', JSON.stringify(next)); setNewSet({ title: '', subject: '', description: '', questions: '' }); notify('새 문제 세트가 공개되었습니다.');
   }
   function reset() { setStudent({ school: '', studentId: '', name: '' }); setSelectedId(''); setAnswers({}); setView('start'); }
 
@@ -65,7 +92,7 @@ export default function Home() {
 
     {view === 'result' && selected && submitted && <section className="mx-auto max-w-lg px-5 py-12 text-center"><div className="card p-8"><div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#e1f3ed] text-4xl">✓</div><p className="eyebrow mt-6">제출 완료</p><h1 className="mt-2 text-3xl font-black">수고했어요, {student.name}님!</h1><p className="mt-3 text-[#667085]">{selected.title} 답안이 안전하게 저장되었습니다.</p><div className="mx-auto my-7 grid h-36 w-36 place-items-center rounded-full border-[10px] border-[#dff0eb]"><div><b className="text-4xl text-[#176b5b]">{score}</b><span className="text-lg text-[#7a8496]"> / {selected.questions.length}</span><small className="mt-1 block text-[#7a8496]">정답 수</small></div></div><button onClick={() => setView('sets')} className="primary">다른 문제 풀기</button><button onClick={reset} className="mt-3 w-full py-3 text-sm font-bold text-[#667085]">처음으로 돌아가기</button></div></section>}
 
-    {view === 'admin' && <section className="mx-auto max-w-4xl px-5 py-9"><span className="pill">관리자 베타</span><h1 className="mt-4 text-3xl font-black">문제 세트 관리</h1><p className="mt-2 text-[#667085]">1차 버전은 이 기기에 저장됩니다. 추후 계정과 중앙 DB를 연결할 수 있는 구조입니다.</p><div className="mt-7 grid gap-6 md:grid-cols-[1fr_1.2fr]"><div><h2 className="mb-3 font-extrabold">등록된 세트</h2><div className="grid gap-3">{sets.map((s) => <div className="card p-4" key={s.id}><div className="flex justify-between gap-3"><div><b>{s.title}</b><p className="mt-1 text-xs text-[#7a8496]">{s.subject} · {s.questions.length}문제</p></div><button className="text-xs font-bold text-red-500" onClick={() => { const next=sets.filter((x)=>x.id!==s.id); setSets(next); localStorage.setItem('campus-quiz-sets',JSON.stringify(next)); }}>삭제</button></div></div>)}</div></div><form className="card p-6" onSubmit={addSet}><h2 className="text-xl font-extrabold">새 문제 세트</h2><div className="mt-5 grid gap-4"><div><label className="field-label">세트 제목</label><input className="field" placeholder="2회차 공중보건" value={newSet.title} onChange={(e)=>setNewSet({...newSet,title:e.target.value})}/></div><div><label className="field-label">과목</label><input className="field" placeholder="공중보건" value={newSet.subject} onChange={(e)=>setNewSet({...newSet,subject:e.target.value})}/></div><div><label className="field-label">설명</label><input className="field" placeholder="핵심 개념 점검" value={newSet.description} onChange={(e)=>setNewSet({...newSet,description:e.target.value})}/></div><div><label className="field-label">문제 일괄 입력</label><textarea className="field min-h-36" placeholder={'질문 | 보기1 | 보기2 | 보기3 | 보기4 | 정답번호\n두 번째 질문 | 보기1 | 보기2 | 보기3 | 보기4 | 2'} value={newSet.questions} onChange={(e)=>setNewSet({...newSet,questions:e.target.value})}/><p className="mt-2 text-xs leading-5 text-[#7a8496]">한 줄에 한 문제, 각 항목은 | 기호로 구분합니다. 정답번호는 1~4입니다.</p></div></div><button className="primary mt-5">등록하고 공개하기</button></form></div></section>}
+    {view === 'admin' && <section className="mx-auto max-w-4xl px-5 py-9"><span className="pill">관리자 베타</span><h1 className="mt-4 text-3xl font-black">문제 세트 관리</h1><p className="mt-2 text-[#667085]">1차 버전은 이 기기에 저장됩니다. 추후 계정과 중앙 DB를 연결할 수 있는 구조입니다.</p><div className="mt-7 grid gap-6 md:grid-cols-[1fr_1.2fr]"><div><h2 className="mb-3 font-extrabold">등록된 세트</h2><div className="grid gap-3">{sets.map((s) => <div className="card p-4" key={s.id}><div className="flex justify-between gap-3"><div><b>{s.title}</b><p className="mt-1 text-xs text-[#7a8496]">{s.subject} · {s.questions.length}문제</p></div><button className="text-xs font-bold text-red-500" onClick={() => { const next=sets.filter((x)=>x.id!==s.id); setSets(next); localStorage.setItem('campus-quiz-sets-2025',JSON.stringify(next)); }}>삭제</button></div></div>)}</div></div><form className="card p-6" onSubmit={addSet}><h2 className="text-xl font-extrabold">새 문제 세트</h2><div className="mt-5 grid gap-4"><div><label className="field-label">세트 제목</label><input className="field" placeholder="2회차 공중보건" value={newSet.title} onChange={(e)=>setNewSet({...newSet,title:e.target.value})}/></div><div><label className="field-label">과목</label><input className="field" placeholder="공중보건" value={newSet.subject} onChange={(e)=>setNewSet({...newSet,subject:e.target.value})}/></div><div><label className="field-label">설명</label><input className="field" placeholder="핵심 개념 점검" value={newSet.description} onChange={(e)=>setNewSet({...newSet,description:e.target.value})}/></div><div><label className="field-label">문제 일괄 입력</label><textarea className="field min-h-36" placeholder={'질문 | 보기1 | 보기2 | 보기3 | 보기4 | 정답번호\n두 번째 질문 | 보기1 | 보기2 | 보기3 | 보기4 | 2'} value={newSet.questions} onChange={(e)=>setNewSet({...newSet,questions:e.target.value})}/><p className="mt-2 text-xs leading-5 text-[#7a8496]">한 줄에 한 문제, 각 항목은 | 기호로 구분합니다. 정답번호는 1~4입니다.</p></div></div><button className="primary mt-5">등록하고 공개하기</button></form></div></section>}
     {toast && <div role="status" className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-[#172338] px-5 py-3 text-sm font-bold text-white shadow-xl">{toast}</div>}
   </main>;
 }
