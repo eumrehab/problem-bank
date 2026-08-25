@@ -31,6 +31,8 @@ body {
 .primary { width:100%; border-radius:.8rem; background:#176b5b; padding:.95rem 1.2rem; font-weight:800; color:#fff; box-shadow:0 8px 20px rgba(23,107,91,.18); transition:.2s; }
 .primary:hover { background:#12594c; }
 .secondary { min-width:6.5rem; border:1px solid #d7dee8; border-radius:.8rem; background:#fff; padding:.95rem 1.2rem; font-weight:800; color:#536076; }
+.submit-quiz { width:100%; border:1px solid #176b5b; border-radius:.8rem; background:#fff; padding:.9rem 1.2rem; font-weight:800; color:#176b5b; transition:.2s; }
+.submit-quiz:hover { background:#edf8f5; }
 .back { font-size:.88rem; font-weight:750; color:#667085; }
 .option { display:flex; align-items:center; gap:.8rem; width:100%; border:1px solid #d9e0ea; border-radius:.85rem; padding:.95rem; text-align:left; font-weight:650; transition:.15s; }
 .option span { display:grid; width:1.8rem; height:1.8rem; flex:none; place-items:center; border-radius:50%; background:#f0f3f7; color:#657086; font-size:.82rem; }

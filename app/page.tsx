@@ -70,7 +70,13 @@ export default function Home() {
   function choose(set: QuizSet) { setSelectedId(set.id); setAnswers({}); setCurrent(0); setSubmitted(false); setView('quiz'); window.scrollTo(0, 0); }
   async function submitQuiz() {
     if (!selected) return;
-    if (Object.keys(answers).length < selected.questions.length && !confirm('아직 풀지 않은 문제가 있습니다. 그래도 제출할까요?')) return;
+    const unansweredIndex = selected.questions.findIndex((question) => answers[question.id] === undefined);
+    if (unansweredIndex >= 0) {
+      setCurrent(unansweredIndex);
+      notify(`${unansweredIndex + 1}번 문제가 응답되지 않았습니다.`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     const submittedDate = new Date();
     const payload = { submittedAt: submittedDate.toISOString(), ...student, setId: selected.id, setTitle: selected.title, score, total: selected.questions.length, answers: selected.questions.map((q) => ({ questionId: q.id, selected: answers[q.id] ?? '', correct: q.answer })) };
     const endpoint = process.env.NEXT_PUBLIC_GOOGLE_SCRIPT_URL;
@@ -87,10 +93,10 @@ export default function Home() {
 
   async function downloadReviewPdf() {
     if (!selected) return;
-    const header = document.getElementById('review-header');
-    const questionCards = Array.from(document.querySelectorAll<HTMLElement>('.pdf-question'));
-    if (!header || !questionCards.length) return;
     setPdfBusy(true);
+    const staging = document.createElement('div');
+    staging.style.cssText = 'position:fixed;left:-10000px;top:0;width:900px;background:#fff;color:#182338;font-family:Arial,"Malgun Gothic",sans-serif;padding:30px;';
+    document.body.appendChild(staging);
     try {
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -104,8 +110,64 @@ export default function Home() {
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.96), 'JPEG', 10, y, pageWidth, height);
         y += height + gap;
       };
+
+      const header = document.createElement('section');
+      header.style.cssText = 'width:840px;background:#fff;padding:0 0 22px;border-bottom:1px solid #dfe5ee;';
+      const heading = document.createElement('h1');
+      heading.textContent = selected.title;
+      heading.style.cssText = 'margin:0 0 16px;font-size:28px;line-height:1.35;font-weight:800;color:#182338;';
+      header.appendChild(heading);
+      const infoTable = document.createElement('table');
+      infoTable.style.cssText = 'width:100%;border-collapse:collapse;table-layout:fixed;font-size:14px;color:#344054;';
+      const infoRows = [
+        ['학교', student.school, '학번', student.studentId],
+        ['이름', student.name, '시험명', selected.title],
+        ['점수', `${score}/${selected.questions.length}점`, '제출 일시', submittedAt],
+      ];
+      infoRows.forEach((row) => {
+        const tr = document.createElement('tr');
+        row.forEach((value, index) => {
+          const cell = document.createElement(index % 2 === 0 ? 'th' : 'td');
+          cell.textContent = value;
+          cell.style.cssText = `border:1px solid #b9c3d1;padding:10px;word-break:break-word;${index % 2 === 0 ? 'width:14%;background:#eef2f6;text-align:center;font-weight:800;' : 'width:36%;background:#fff;text-align:left;font-weight:400;'}`;
+          tr.appendChild(cell);
+        });
+        infoTable.appendChild(tr);
+      });
+      header.appendChild(infoTable);
+      const legend = document.createElement('p');
+      legend.innerHTML = '<span style="color:#1d4ed8;font-weight:700">파랑: 정답</span>　<span style="color:#d92d20;font-weight:700">빨강: 틀리게 선택한 답</span>';
+      legend.style.cssText = 'margin:14px 0 0;font-size:13px;';
+      header.appendChild(legend);
+      staging.appendChild(header);
       await addElement(header, 7);
-      for (const card of questionCards) await addElement(card, 5);
+
+      for (const question of selected.questions) {
+        const selectedAnswer = answers[question.id];
+        const isCorrect = selectedAnswer === question.answer;
+        const number = question.id.split('-').pop();
+        const card = document.createElement('section');
+        card.style.cssText = 'width:840px;background:#fff;padding:4px 0 22px;border-bottom:1px solid #dfe5ee;color:#182338;';
+        const questionTitle = document.createElement('h2');
+        questionTitle.textContent = `${number}번  ${question.text}`;
+        questionTitle.style.cssText = `margin:0 0 13px;white-space:pre-line;font-size:19px;line-height:1.55;font-weight:800;color:${isCorrect ? '#1d4ed8' : '#d92d20'};`;
+        card.appendChild(questionTitle);
+        question.options.forEach((option, index) => {
+          const line = document.createElement('p');
+          const isAnswer = index === question.answer;
+          const isWrongChoice = index === selectedAnswer && !isAnswer;
+          line.textContent = `${index + 1}. ${option}${isAnswer ? (index === selectedAnswer ? '  내 답 · 정답' : '  정답') : isWrongChoice ? '  내 답' : ''}`;
+          line.style.cssText = `margin:5px 0 5px 22px;font-size:16px;line-height:1.45;font-weight:${isAnswer || isWrongChoice ? '700' : '400'};color:${isAnswer ? '#1d4ed8' : isWrongChoice ? '#d92d20' : '#344054'};`;
+          card.appendChild(line);
+        });
+        const answerLine = document.createElement('p');
+        answerLine.innerHTML = `<span style="color:${isCorrect ? '#1d4ed8' : '#d92d20'}"><b>내가 선택한 답:</b> ${selectedAnswer + 1}번 ${question.options[selectedAnswer]}</span>　　<span style="color:#1d4ed8"><b>정답:</b> ${question.answer + 1}번 ${question.options[question.answer]}</span>`;
+        answerLine.style.cssText = 'margin:14px 0 0;padding-left:14px;border-left:3px solid #dfe5ee;font-size:14px;line-height:1.5;';
+        card.appendChild(answerLine);
+        staging.appendChild(card);
+        await addElement(card, 5);
+        card.remove();
+      }
       const pages = pdf.getNumberOfPages();
       for (let page = 1; page <= pages; page += 1) {
         pdf.setPage(page);
@@ -116,8 +178,9 @@ export default function Home() {
       const safeTitle = selected.title.replace(/[^가-힣a-zA-Z0-9_-]/g, '_');
       pdf.save(`${safeTitle}_${student.studentId}_${student.name}_오답노트.pdf`);
     } catch {
-      notify('PDF 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+      notify('PDF 생성에 실패했습니다. 브라우저를 새로고침한 뒤 다시 시도해 주세요.');
     } finally {
+      staging.remove();
       setPdfBusy(false);
     }
   }
@@ -129,7 +192,7 @@ export default function Home() {
 
     {view === 'sets' && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('start')}>← 학생 정보 수정</button><div className="mt-5"><p className="eyebrow">STEP 02</p><h1 className="text-3xl font-black tracking-tight">풀 문제를 선택하세요</h1><p className="mt-2 text-[#667085]">{student.school} · {student.studentId} · {student.name}</p></div><div className="mt-7 grid gap-4">{sets.filter((s) => s.published).map((set) => <button key={set.id} onClick={() => choose(set)} className="card flex items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:border-[#9ec7bd]"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#e7f3f0] text-xl">📘</span><span className="min-w-0 flex-1"><b className="block text-lg">{set.title}</b><small className="mt-1 block text-[#778195]">{set.description || set.subject} · {set.questions.length}문제</small></span><span className="text-[#176b5b]">→</span></button>)}</div></section>}
 
-    {view === 'quiz' && selected && <section className="mx-auto max-w-3xl px-5 py-7"><div className="flex items-center justify-between text-sm"><button className="back" onClick={() => setView('sets')}>← 나가기</button><b>{current + 1} / {selected.questions.length}</b></div><div className="mt-5 h-2 overflow-hidden rounded-full bg-[#dfe5ee]"><div className="h-full rounded-full bg-[#176b5b] transition-all" style={{width:`${((current + 1) / selected.questions.length) * 100}%`}}/></div><div className="mt-6 card p-6 md:p-8"><p className="eyebrow">{selected.title}</p><h1 className="mt-3 whitespace-pre-line text-xl font-extrabold leading-8"><span className="mr-2 text-[#176b5b]">Q{current + 1}.</span>{selected.questions[current].text}</h1><div className="mt-7 grid gap-3">{selected.questions[current].options.map((option, i) => <button key={option} onClick={() => setAnswers({...answers, [selected.questions[current].id]:i})} className={`option ${answers[selected.questions[current].id] === i ? 'option-selected' : ''}`}><span>{i + 1}</span>{option}</button>)}</div></div><div className="mt-5 flex gap-3"><button disabled={current === 0} onClick={() => setCurrent(current - 1)} className="secondary disabled:opacity-40">이전</button>{current < selected.questions.length - 1 ? <button onClick={() => setCurrent(current + 1)} className="primary">다음 문제</button> : <button onClick={submitQuiz} className="primary">답안 제출하기</button>}</div></section>}
+    {view === 'quiz' && selected && <section className="mx-auto max-w-3xl px-5 py-7"><div className="flex items-center justify-between text-sm"><button className="back" onClick={() => setView('sets')}>← 나가기</button><b>{current + 1} / {selected.questions.length}</b></div><div className="mt-5 h-2 overflow-hidden rounded-full bg-[#dfe5ee]"><div className="h-full rounded-full bg-[#176b5b] transition-all" style={{width:`${((current + 1) / selected.questions.length) * 100}%`}}/></div><div className="mt-6 card p-6 md:p-8"><p className="eyebrow">{selected.title}</p><h1 className="mt-3 whitespace-pre-line text-xl font-extrabold leading-8"><span className="mr-2 text-[#176b5b]">Q{current + 1}.</span>{selected.questions[current].text}</h1><div className="mt-7 grid gap-3">{selected.questions[current].options.map((option, i) => <button key={option} onClick={() => setAnswers({...answers, [selected.questions[current].id]:i})} className={`option ${answers[selected.questions[current].id] === i ? 'option-selected' : ''}`}><span>{i + 1}</span>{option}</button>)}</div></div><div className="mt-5 flex gap-3"><button disabled={current === 0} onClick={() => setCurrent(current - 1)} className="secondary disabled:opacity-40">이전</button><button disabled={current === selected.questions.length - 1} onClick={() => setCurrent(current + 1)} className="primary disabled:opacity-40">다음 문제</button></div><button onClick={submitQuiz} className="submit-quiz mt-3">제출하기</button></section>}
 
     {view === 'result' && selected && submitted && <section className="mx-auto max-w-3xl px-5 py-12"><div className="card p-8 text-center"><div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#e1f3ed] text-4xl">✓</div><p className="eyebrow mt-6">제출 완료</p><h1 className="mt-2 text-3xl font-black">수고했어요, {student.name}님!</h1><p className="mt-3 text-[#667085]">{selected.title} 답안이 안전하게 저장되었습니다.</p><div className="mx-auto my-7 grid h-36 w-36 place-items-center rounded-full border-[10px] border-[#dff0eb]"><div><b className="text-4xl text-[#176b5b]">{score}</b><span className="text-lg text-[#7a8496]"> / {selected.questions.length}</span><small className="mt-1 block text-[#7a8496]">정답 수</small></div></div><div className="grid gap-3 sm:grid-cols-2"><button onClick={downloadReviewPdf} disabled={pdfBusy} className="primary disabled:opacity-60">{pdfBusy ? 'PDF 만드는 중…' : '전체 문제 PDF 받기'}</button><button onClick={() => setView('sets')} className="secondary">다른 문제 풀기</button></div><button onClick={reset} className="mt-3 w-full py-3 text-sm font-bold text-[#667085]">처음으로 돌아가기</button></div>
       <div className="mt-7 rounded-[1.35rem] bg-white p-5 text-left md:p-8"><div id="review-header" className="border-b border-[#dfe5ee] bg-white pb-6"><p className="eyebrow">전체 문제 복습노트</p><h2 className="mt-2 text-2xl font-black">{selected.title}</h2><table className="review-info-table mt-4"><tbody><tr><th>학교</th><td>{student.school}</td><th>학번</th><td>{student.studentId}</td></tr><tr><th>이름</th><td>{student.name}</td><th>시험명</th><td>{selected.title}</td></tr><tr><th>점수</th><td>{score}/{selected.questions.length}점</td><th>제출 일시</th><td>{submittedAt}</td></tr></tbody></table><div className="mt-4 flex flex-wrap gap-3 text-xs font-bold"><span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">파랑: 정답</span><span className="rounded-full bg-red-50 px-3 py-1 text-red-600">빨강: 틀리게 선택한 답</span></div></div>
