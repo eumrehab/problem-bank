@@ -39,6 +39,10 @@ body {
 .option-selected span { background:#176b5b; color:#fff; }
 button { cursor:pointer; }
 .review-question { break-inside:avoid; border-bottom:1px solid #dfe5ee; padding:0 0 1.5rem; }
+.review-info-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:.78rem; color:#475467; }
+.review-info-table th, .review-info-table td { border:1px solid #b9c3d1; padding:.45rem .55rem; vertical-align:middle; word-break:break-word; }
+.review-info-table th { width:14%; background:#eef2f6; color:#344054; font-weight:800; text-align:center; }
+.review-info-table td { width:36%; background:#fff; }
 .review-option { display:flex; align-items:baseline; gap:.55rem; padding:.28rem .1rem; font-size:.92rem; }
 .review-option span { flex:none; color:#667085; font-size:.86rem; font-weight:800; }
 .review-option p { flex:1; }
