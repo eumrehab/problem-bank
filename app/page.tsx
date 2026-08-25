@@ -55,12 +55,14 @@ export default function Home() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [current, setCurrent] = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [toast, setToast] = useState('');
   const [newSet, setNewSet] = useState({ title: '', subject: '', description: '', questions: '' });
 
   useEffect(() => { const saved = localStorage.getItem('campus-quiz-sets-2025'); if (saved) { try { setSets(JSON.parse(saved)); } catch {} } }, []);
   const selected = useMemo(() => sets.find((s) => s.id === selectedId), [sets, selectedId]);
   const score = selected ? selected.questions.filter((q) => answers[q.id] === q.answer).length : 0;
+  const wrongQuestions = selected ? selected.questions.filter((q) => answers[q.id] !== q.answer) : [];
   const notify = (message: string) => { setToast(message); setTimeout(() => setToast(''), 2600); };
 
   function start(e: FormEvent) { e.preventDefault(); if (!student.school || !student.studentId.trim() || !student.name.trim()) return notify('학생 정보를 모두 입력해 주세요.'); setView('sets'); }
@@ -81,6 +83,44 @@ export default function Home() {
   }
   function reset() { setStudent({ school: '', studentId: '', name: '' }); setSelectedId(''); setAnswers({}); setView('start'); }
 
+  async function downloadReviewPdf() {
+    if (!selected) return;
+    const review = document.getElementById('review-pdf');
+    if (!review) return;
+    setPdfBusy(true);
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas'), import('jspdf')]);
+      const canvas = await html2canvas(review, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = 190;
+      const pageHeight = 277;
+      const sliceHeight = Math.floor(canvas.width * (pageHeight / pageWidth));
+      let offset = 0;
+      let page = 0;
+      while (offset < canvas.height) {
+        const height = Math.min(sliceHeight, canvas.height - offset);
+        const slice = document.createElement('canvas');
+        slice.width = canvas.width;
+        slice.height = height;
+        const context = slice.getContext('2d');
+        if (!context) throw new Error('PDF canvas unavailable');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, slice.width, slice.height);
+        context.drawImage(canvas, 0, offset, canvas.width, height, 0, 0, canvas.width, height);
+        if (page > 0) pdf.addPage();
+        pdf.addImage(slice.toDataURL('image/jpeg', 0.94), 'JPEG', 10, 10, pageWidth, (height / canvas.width) * pageWidth);
+        offset += height;
+        page += 1;
+      }
+      const safeTitle = selected.title.replace(/[^가-힣a-zA-Z0-9_-]/g, '_');
+      pdf.save(`${safeTitle}_${student.studentId}_${student.name}_오답노트.pdf`);
+    } catch {
+      notify('PDF 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   return <main className="min-h-screen bg-[#f4f7fb] text-[#182338]">
     <header className="sticky top-0 z-20 border-b border-[#dfe5ee] bg-white/95 px-5 py-3 backdrop-blur"><div className="mx-auto flex max-w-5xl items-center justify-between"><button onClick={reset} className="flex items-center gap-3 text-left"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#176b5b] text-lg font-black text-white">Q</span><span><b className="block tracking-tight">캠퍼스 문제은행</b><small className="text-[#6b778c]">보건의료 학습센터</small></span></button><button onClick={() => setView(view === 'admin' ? 'start' : 'admin')} className="rounded-lg px-3 py-2 text-sm font-bold text-[#667085] hover:bg-[#f1f4f8]">{view === 'admin' ? '학생 화면' : '관리자'}</button></div></header>
 
@@ -90,7 +130,12 @@ export default function Home() {
 
     {view === 'quiz' && selected && <section className="mx-auto max-w-3xl px-5 py-7"><div className="flex items-center justify-between text-sm"><button className="back" onClick={() => setView('sets')}>← 나가기</button><b>{current + 1} / {selected.questions.length}</b></div><div className="mt-5 h-2 overflow-hidden rounded-full bg-[#dfe5ee]"><div className="h-full rounded-full bg-[#176b5b] transition-all" style={{width:`${((current + 1) / selected.questions.length) * 100}%`}}/></div><div className="mt-6 card p-6 md:p-8"><p className="eyebrow">{selected.title}</p><h1 className="mt-3 text-xl font-extrabold leading-8"><span className="mr-2 text-[#176b5b]">Q{current + 1}.</span>{selected.questions[current].text}</h1><div className="mt-7 grid gap-3">{selected.questions[current].options.map((option, i) => <button key={option} onClick={() => setAnswers({...answers, [selected.questions[current].id]:i})} className={`option ${answers[selected.questions[current].id] === i ? 'option-selected' : ''}`}><span>{i + 1}</span>{option}</button>)}</div></div><div className="mt-5 flex gap-3"><button disabled={current === 0} onClick={() => setCurrent(current - 1)} className="secondary disabled:opacity-40">이전</button>{current < selected.questions.length - 1 ? <button onClick={() => setCurrent(current + 1)} className="primary">다음 문제</button> : <button onClick={submitQuiz} className="primary">답안 제출하기</button>}</div></section>}
 
-    {view === 'result' && selected && submitted && <section className="mx-auto max-w-lg px-5 py-12 text-center"><div className="card p-8"><div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#e1f3ed] text-4xl">✓</div><p className="eyebrow mt-6">제출 완료</p><h1 className="mt-2 text-3xl font-black">수고했어요, {student.name}님!</h1><p className="mt-3 text-[#667085]">{selected.title} 답안이 안전하게 저장되었습니다.</p><div className="mx-auto my-7 grid h-36 w-36 place-items-center rounded-full border-[10px] border-[#dff0eb]"><div><b className="text-4xl text-[#176b5b]">{score}</b><span className="text-lg text-[#7a8496]"> / {selected.questions.length}</span><small className="mt-1 block text-[#7a8496]">정답 수</small></div></div><button onClick={() => setView('sets')} className="primary">다른 문제 풀기</button><button onClick={reset} className="mt-3 w-full py-3 text-sm font-bold text-[#667085]">처음으로 돌아가기</button></div></section>}
+    {view === 'result' && selected && submitted && <section className="mx-auto max-w-3xl px-5 py-12"><div className="card p-8 text-center"><div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#e1f3ed] text-4xl">✓</div><p className="eyebrow mt-6">제출 완료</p><h1 className="mt-2 text-3xl font-black">수고했어요, {student.name}님!</h1><p className="mt-3 text-[#667085]">{selected.title} 답안이 안전하게 저장되었습니다.</p><div className="mx-auto my-7 grid h-36 w-36 place-items-center rounded-full border-[10px] border-[#dff0eb]"><div><b className="text-4xl text-[#176b5b]">{score}</b><span className="text-lg text-[#7a8496]"> / {selected.questions.length}</span><small className="mt-1 block text-[#7a8496]">정답 수</small></div></div><div className="grid gap-3 sm:grid-cols-2"><button onClick={downloadReviewPdf} disabled={pdfBusy} className="primary disabled:opacity-60">{pdfBusy ? 'PDF 만드는 중…' : '오답노트 PDF 받기'}</button><button onClick={() => setView('sets')} className="secondary">다른 문제 풀기</button></div><button onClick={reset} className="mt-3 w-full py-3 text-sm font-bold text-[#667085]">처음으로 돌아가기</button></div>
+      <div id="review-pdf" className="mt-7 rounded-[1.35rem] bg-white p-5 text-left md:p-8"><div className="border-b border-[#dfe5ee] pb-6"><p className="eyebrow">개인 오답노트</p><h2 className="mt-2 text-2xl font-black">{selected.title}</h2><div className="mt-3 grid gap-1 text-sm text-[#667085] sm:grid-cols-2"><p>학교: {student.school}</p><p>학번: {student.studentId}</p><p>이름: {student.name}</p><p>결과: {score}/{selected.questions.length}점 · 오답 {wrongQuestions.length}개</p></div></div>
+        {wrongQuestions.length === 0 ? <div className="py-12 text-center"><p className="text-4xl">🎉</p><h3 className="mt-3 text-xl font-black">모든 문제를 맞혔어요!</h3><p className="mt-2 text-sm text-[#667085]">완벽하게 학습을 마쳤습니다.</p></div> : <div className="mt-6 grid gap-5">{wrongQuestions.map((q) => { const selectedAnswer = answers[q.id]; const sourceNumber = q.id.split('-').pop(); return <article key={q.id} className="review-question"><div className="flex items-start justify-between gap-3"><h3 className="font-extrabold leading-7"><span className="mr-2 text-red-600">{sourceNumber}번</span>{q.text}</h3><span className="shrink-0 rounded-full bg-red-50 px-3 py-1 text-xs font-extrabold text-red-600">오답</span></div><ol className="mt-4 grid gap-2">{q.options.map((option, index) => <li key={option} className={`review-option ${index === q.answer ? 'review-correct' : ''} ${index === selectedAnswer && index !== q.answer ? 'review-wrong' : ''}`}><span>{index + 1}</span><p>{option}</p>{index === q.answer && <b>정답</b>}{index === selectedAnswer && index !== q.answer && <b>내 답</b>}</li>)}</ol><div className="mt-4 grid gap-2 rounded-xl bg-[#f7f9fc] p-4 text-sm sm:grid-cols-2"><p><b>내가 선택한 답:</b> {selectedAnswer === undefined ? '미응답' : `${selectedAnswer + 1}번 ${q.options[selectedAnswer]}`}</p><p className="text-[#176b5b]"><b>정답:</b> {q.answer + 1}번 {q.options[q.answer]}</p></div></article>; })}</div>}
+        <p className="mt-8 border-t border-[#dfe5ee] pt-4 text-center text-xs text-[#8a94a6]">캠퍼스 문제은행 · 자율학습 오답노트</p>
+      </div>
+    </section>}
 
     {view === 'admin' && <section className="mx-auto max-w-4xl px-5 py-9"><span className="pill">관리자 베타</span><h1 className="mt-4 text-3xl font-black">문제 세트 관리</h1><p className="mt-2 text-[#667085]">1차 버전은 이 기기에 저장됩니다. 추후 계정과 중앙 DB를 연결할 수 있는 구조입니다.</p><div className="mt-7 grid gap-6 md:grid-cols-[1fr_1.2fr]"><div><h2 className="mb-3 font-extrabold">등록된 세트</h2><div className="grid gap-3">{sets.map((s) => <div className="card p-4" key={s.id}><div className="flex justify-between gap-3"><div><b>{s.title}</b><p className="mt-1 text-xs text-[#7a8496]">{s.subject} · {s.questions.length}문제</p></div><button className="text-xs font-bold text-red-500" onClick={() => { const next=sets.filter((x)=>x.id!==s.id); setSets(next); localStorage.setItem('campus-quiz-sets-2025',JSON.stringify(next)); }}>삭제</button></div></div>)}</div></div><form className="card p-6" onSubmit={addSet}><h2 className="text-xl font-extrabold">새 문제 세트</h2><div className="mt-5 grid gap-4"><div><label className="field-label">세트 제목</label><input className="field" placeholder="2회차 공중보건" value={newSet.title} onChange={(e)=>setNewSet({...newSet,title:e.target.value})}/></div><div><label className="field-label">과목</label><input className="field" placeholder="공중보건" value={newSet.subject} onChange={(e)=>setNewSet({...newSet,subject:e.target.value})}/></div><div><label className="field-label">설명</label><input className="field" placeholder="핵심 개념 점검" value={newSet.description} onChange={(e)=>setNewSet({...newSet,description:e.target.value})}/></div><div><label className="field-label">문제 일괄 입력</label><textarea className="field min-h-36" placeholder={'질문 | 보기1 | 보기2 | 보기3 | 보기4 | 정답번호\n두 번째 질문 | 보기1 | 보기2 | 보기3 | 보기4 | 2'} value={newSet.questions} onChange={(e)=>setNewSet({...newSet,questions:e.target.value})}/><p className="mt-2 text-xs leading-5 text-[#7a8496]">한 줄에 한 문제, 각 항목은 | 기호로 구분합니다. 정답번호는 1~4입니다.</p></div></div><button className="primary mt-5">등록하고 공개하기</button></form></div></section>}
     {toast && <div role="status" className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-[#172338] px-5 py-3 text-sm font-bold text-white shadow-xl">{toast}</div>}
