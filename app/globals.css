@@ -1,0 +1,40 @@
+@import 'tailwindcss';
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root { --background: #ffffff; --foreground: #171717; }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.field-label { display:block; margin-bottom:.5rem; font-size:.82rem; font-weight:700; color:#475467; }
+.field { width:100%; border:1px solid #d9e0ea; border-radius:.75rem; background:#fff; padding:.85rem .9rem; font-size:1rem; outline:none; transition:.2s; }
+.field:focus { border-color:#176b5b; box-shadow:0 0 0 3px rgba(23,107,91,.11); }
+.card { border:1px solid #dfe5ee; border-radius:1.35rem; background:#fff; box-shadow:0 16px 44px rgba(31,42,68,.07); }
+.pill { display:inline-flex; border-radius:999px; background:#dff3ed; padding:.35rem .75rem; font-size:.75rem; font-weight:800; color:#176b5b; }
+.eyebrow { font-size:.78rem; font-weight:800; letter-spacing:.04em; color:#176b5b; }
+.primary { width:100%; border-radius:.8rem; background:#176b5b; padding:.95rem 1.2rem; font-weight:800; color:#fff; box-shadow:0 8px 20px rgba(23,107,91,.18); transition:.2s; }
+.primary:hover { background:#12594c; }
+.secondary { min-width:6.5rem; border:1px solid #d7dee8; border-radius:.8rem; background:#fff; padding:.95rem 1.2rem; font-weight:800; color:#536076; }
+.back { font-size:.88rem; font-weight:750; color:#667085; }
+.option { display:flex; align-items:center; gap:.8rem; width:100%; border:1px solid #d9e0ea; border-radius:.85rem; padding:.95rem; text-align:left; font-weight:650; transition:.15s; }
+.option span { display:grid; width:1.8rem; height:1.8rem; flex:none; place-items:center; border-radius:50%; background:#f0f3f7; color:#657086; font-size:.82rem; }
+.option:hover { border-color:#91bdb2; background:#f8fcfb; }
+.option-selected { border-color:#176b5b; background:#edf8f5; box-shadow:0 0 0 2px rgba(23,107,91,.08); }
+.option-selected span { background:#176b5b; color:#fff; }
+button { cursor:pointer; }
