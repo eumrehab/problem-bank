@@ -46,6 +46,7 @@ const initialSets: QuizSet[] = [
 ];
 
 const schools = ['인제대학교', '동명대학교', '경남대학교'];
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwyr8KcVlvSz4nALEXj2vrN-UUlo_uVLPMsBc99jk4ck6xIeVfXgEINFz1hFbMpaQbj/exec';
 
 export default function Home() {
   const [view, setView] = useState<'start'|'subjects'|'sets'|'quiz'|'result'|'admin'>('start');
@@ -81,7 +82,7 @@ export default function Home() {
     }
     const submittedDate = new Date();
     const payload = { submittedAt: submittedDate.toISOString(), ...student, setId: selected.id, setTitle: selected.title, score, total: selected.questions.length, answers: selected.questions.map((q) => ({ questionId: q.id, selected: answers[q.id] ?? '', correct: q.answer })) };
-    const endpoint = process.env.NEXT_PUBLIC_GOOGLE_SCRIPT_URL;
+    const endpoint = process.env.NEXT_PUBLIC_GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL;
     try { if (endpoint) await fetch(endpoint, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }); else { const demo = JSON.parse(localStorage.getItem('demo-submissions') || '[]'); localStorage.setItem('demo-submissions', JSON.stringify([...demo, payload])); } setSubmittedAt(submittedDate.toLocaleString('ko-KR')); setSubmitted(true); setView('result'); } catch { notify('제출 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.'); }
   }
   function addSet(e: FormEvent) {
