@@ -26,6 +26,8 @@ body {
 .field { width:100%; border:1px solid #d9e0ea; border-radius:.75rem; background:#fff; padding:.85rem .9rem; font-size:1rem; outline:none; transition:.2s; }
 .field:focus { border-color:#176b5b; box-shadow:0 0 0 3px rgba(23,107,91,.11); }
 .card { border:1px solid #dfe5ee; border-radius:1.35rem; background:#fff; box-shadow:0 16px 44px rgba(31,42,68,.07); }
+.subject-card { min-height:17rem; transition:transform .2s, border-color .2s, box-shadow .2s; }
+.subject-card:hover { transform:translateY(-3px); border-color:#9ec7bd; box-shadow:0 20px 48px rgba(31,42,68,.11); }
 .pill { display:inline-flex; border-radius:999px; background:#dff3ed; padding:.35rem .75rem; font-size:.75rem; font-weight:800; color:#176b5b; }
 .eyebrow { font-size:.78rem; font-weight:800; letter-spacing:.04em; color:#176b5b; }
 .primary { width:100%; border-radius:.8rem; background:#176b5b; padding:.95rem 1.2rem; font-weight:800; color:#fff; box-shadow:0 8px 20px rgba(23,107,91,.18); transition:.2s; }
