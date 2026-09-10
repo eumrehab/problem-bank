@@ -106,7 +106,7 @@ export default function Home() {
     const quizSet: QuizSet = {
       id: `book-${selectedBookSubject.id}-${chapter.id}`,
       title: `교재 문제 · ${subjectLabel} · ${chapter.number}장 ${chapter.title}`,
-      subject: '교재 문제',
+      subject: subjectLabel,
       description: `${subjectLabel} ${chapter.number}장`,
       published: true,
       questions: chapter.questions.map((question) => ({
@@ -142,7 +142,7 @@ export default function Home() {
       return;
     }
     const submittedDate = new Date();
-    const payload = { submittedAt: submittedDate.toISOString(), ...student, setId: selected.id, setTitle: selected.title, score, total: gradingTotal, answers: gradingQuestions.map((q) => ({ questionId: q.id, selected: answers[q.id], correct: q.answer })) };
+    const payload = { submittedAt: submittedDate.toISOString(), ...student, setId: selected.id, setTitle: selected.title, subject: selected.subject, score, total: gradingTotal, answers: gradingQuestions.map((q) => ({ questionId: q.id, selected: answers[q.id], correct: q.answer })) };
     const endpoint = process.env.NEXT_PUBLIC_GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL;
     try { if (endpoint) await fetch(endpoint, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }); else { const demo = JSON.parse(localStorage.getItem('demo-submissions') || '[]'); localStorage.setItem('demo-submissions', JSON.stringify([...demo, payload])); } setSubmittedAt(submittedDate.toLocaleString('ko-KR')); setSubmitted(true); setView('result'); } catch { notify('제출 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.'); }
   }
