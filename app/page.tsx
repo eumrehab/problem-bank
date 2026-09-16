@@ -2,12 +2,13 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import bookQuestionBank from './book-question-bank.json';
+import { infectiousDiseaseQuestions } from './infectious-disease-question-bank';
 
 type Question = { id: string; text: string; options: string[]; answer: number };
 type QuizSet = { id: string; title: string; subject: string; description: string; questions: Question[]; published: boolean };
 type Student = { school: string; studentId: string; name: string };
 type BookQuestion = { id: number; prompt: string; options: string[]; answer: number };
-type BookChapter = { id: string; number: number; title: string; questions: BookQuestion[] };
+type BookChapter = { id: string; number: number; title: string; questions: BookQuestion[]; sampleSize?: number };
 type BookSubject = { id: string; title: string; chapters: BookChapter[] };
 type VisibilityState = Record<string, boolean>;
 
@@ -52,9 +53,36 @@ const initialSets: QuizSet[] = [
 
 const schools = ['인제대학교', '동명대학교', '경남대학교'];
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwyr8KcVlvSz4nALEXj2vrN-UUlo_uVLPMsBc99jk4ck6xIeVfXgEINFz1hFbMpaQbj/exec';
-const bookSubjects = bookQuestionBank as BookSubject[];
+const baseBookSubjects = bookQuestionBank as BookSubject[];
+const infectiousDiseaseChapter: BookChapter = {
+  id: 'public-infectious-diseases',
+  number: 16,
+  title: '(감염병)',
+  questions: infectiousDiseaseQuestions,
+  sampleSize: 30,
+};
+const bookSubjects: BookSubject[] = baseBookSubjects.map((subject) =>
+  subject.id === 'public-health'
+    ? { ...subject, chapters: [...subject.chapters, infectiousDiseaseChapter] }
+    : subject,
+);
+const totalBookChapters = bookSubjects.reduce((total, subject) => total + subject.chapters.length, 0);
+const totalBookQuestions = bookSubjects.reduce(
+  (total, subject) => total + subject.chapters.reduce((chapterTotal, chapter) => chapterTotal + chapter.questions.length, 0),
+  0,
+);
 const ADMIN_ID = 'admin';
 const ADMIN_PASSWORD = 'admin';
+
+function sampleQuestions(questions: BookQuestion[], count?: number) {
+  if (!count || count >= questions.length) return questions;
+  const shuffled = [...questions];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+  }
+  return shuffled.slice(0, count);
+}
 
 export default function Home() {
   const [view, setView] = useState<'start'|'subjects'|'sets'|'bookSubjects'|'chapters'|'quiz'|'result'|'admin'>('start');
@@ -105,13 +133,16 @@ export default function Home() {
   function chooseChapter(chapter: BookChapter) {
     if (!selectedBookSubject) return;
     const subjectLabel = selectedBookSubject.id === 'public-health' ? '공중보건학' : '의료관계법규';
+    const questions = sampleQuestions(chapter.questions, chapter.sampleSize);
     const quizSet: QuizSet = {
       id: `book-${selectedBookSubject.id}-${chapter.id}`,
-      title: `교재 문제 · ${subjectLabel} · ${chapter.number}장 ${chapter.title}`,
+      title: chapter.sampleSize
+        ? `교재 문제 · ${subjectLabel} · ${chapter.title}`
+        : `교재 문제 · ${subjectLabel} · ${chapter.number}장 ${chapter.title}`,
       subject: subjectLabel,
-      description: `${subjectLabel} ${chapter.number}장`,
+      description: chapter.sampleSize ? `${subjectLabel} 감염병 랜덤 문제` : `${subjectLabel} ${chapter.number}장`,
       published: true,
-      questions: chapter.questions.map((question) => ({
+      questions: questions.map((question) => ({
         id: `book-${selectedBookSubject.id}-${chapter.id}-${question.id}`,
         text: question.prompt,
         options: question.options,
@@ -264,11 +295,11 @@ export default function Home() {
 
     {view === 'start' && <section className="mx-auto grid max-w-5xl gap-8 px-5 py-10 md:grid-cols-[1fr_420px] md:items-center md:py-20"><div><span className="pill">모바일 문제풀이</span><h1 className="mt-5 text-4xl font-black leading-tight tracking-[-.04em] md:text-5xl">오늘의 학습을<br/>가볍게 시작해요.</h1><p className="mt-4 max-w-md leading-7 text-[#667085]">학교와 학생 정보를 입력하고, 교수님이 등록한 문제 세트를 선택해 바로 풀어보세요.</p><div className="mt-7 hidden gap-6 text-sm text-[#667085] md:flex"><span>✓ 로그인 없이 시작</span><span>✓ 자동 제출 저장</span></div></div><form className="card p-6" onSubmit={start}><div className="mb-6"><p className="eyebrow">STEP 01</p><h2 className="mt-1 text-2xl font-extrabold">학생 정보 입력</h2><p className="mt-1 text-sm text-[#7a8496]">정확한 정보를 입력해 주세요.</p></div><label className="field-label">학교</label><select className="field" value={student.school} onChange={(e) => setStudent({...student, school:e.target.value})}><option value="">학교를 선택해 주세요</option>{schools.map((s) => <option key={s}>{s}</option>)}</select><div className="mt-4 grid grid-cols-2 gap-3"><div><label className="field-label">학번</label><input className="field" inputMode="numeric" placeholder="20260001" value={student.studentId} onChange={(e) => setStudent({...student, studentId:e.target.value})}/></div><div><label className="field-label">이름</label><input className="field" placeholder="홍길동" value={student.name} onChange={(e) => setStudent({...student, name:e.target.value})}/></div></div><button className="primary mt-6">문제 세트 선택하기 →</button><p className="mt-4 text-center text-xs leading-5 text-[#8a94a6]">입력한 정보는 답안 제출 및 결과 확인에만 사용됩니다.</p></form></section>}
 
-    {view === 'subjects' && <section className="mx-auto max-w-5xl px-5 py-9"><button className="back" onClick={() => setView('start')}>← 학생 정보 수정</button><div className="mt-5"><p className="eyebrow">STEP 02</p><h1 className="text-3xl font-black tracking-tight">학습할 파트를 선택하세요</h1><p className="mt-2 text-[#667085]">{student.school} · {student.studentId} · {student.name}</p></div><div className="mt-7 grid gap-4 md:grid-cols-3"><button onClick={() => chooseSubject('공중보건')} className="subject-card card p-6 text-left"><span className="grid h-14 w-14 place-items-center rounded-2xl bg-[#e7f3f0] text-3xl">🌿</span><p className="eyebrow mt-5">PART 01</p><h2 className="mt-1 text-2xl font-black">공중보건</h2><p className="mt-2 text-sm leading-6 text-[#667085]">2025년도 작업치료사 국가시험 31~42번</p><b className="mt-6 block text-[#176b5b]">국시 문제 풀기 →</b></button><button onClick={() => chooseSubject('의료관계법규')} className="subject-card card p-6 text-left"><span className="grid h-14 w-14 place-items-center rounded-2xl bg-[#eef1ff] text-3xl">⚖️</span><p className="eyebrow mt-5">PART 02</p><h2 className="mt-1 text-2xl font-black">의료법규</h2><p className="mt-2 text-sm leading-6 text-[#667085]">2025년도 작업치료사 국가시험 71~90번</p><b className="mt-6 block text-[#176b5b]">국시 문제 풀기 →</b></button><button onClick={() => setView('bookSubjects')} className="subject-card card p-6 text-left"><span className="grid h-14 w-14 place-items-center rounded-2xl bg-[#fff2dc] text-3xl">📚</span><p className="eyebrow mt-5">PART 03</p><h2 className="mt-1 text-2xl font-black">교재 문제</h2><p className="mt-2 text-sm leading-6 text-[#667085]">공중보건학·의료관계법규 20개 챕터, 총 834문항</p><b className="mt-6 block text-[#176b5b]">교재 문제 선택하기 →</b></button></div></section>}
+    {view === 'subjects' && <section className="mx-auto max-w-5xl px-5 py-9"><button className="back" onClick={() => setView('start')}>← 학생 정보 수정</button><div className="mt-5"><p className="eyebrow">STEP 02</p><h1 className="text-3xl font-black tracking-tight">학습할 파트를 선택하세요</h1><p className="mt-2 text-[#667085]">{student.school} · {student.studentId} · {student.name}</p></div><div className="mt-7 grid gap-4 md:grid-cols-3"><button onClick={() => chooseSubject('공중보건')} className="subject-card card p-6 text-left"><span className="grid h-14 w-14 place-items-center rounded-2xl bg-[#e7f3f0] text-3xl">🌿</span><p className="eyebrow mt-5">PART 01</p><h2 className="mt-1 text-2xl font-black">공중보건</h2><p className="mt-2 text-sm leading-6 text-[#667085]">2025년도 작업치료사 국가시험 31~42번</p><b className="mt-6 block text-[#176b5b]">국시 문제 풀기 →</b></button><button onClick={() => chooseSubject('의료관계법규')} className="subject-card card p-6 text-left"><span className="grid h-14 w-14 place-items-center rounded-2xl bg-[#eef1ff] text-3xl">⚖️</span><p className="eyebrow mt-5">PART 02</p><h2 className="mt-1 text-2xl font-black">의료법규</h2><p className="mt-2 text-sm leading-6 text-[#667085]">2025년도 작업치료사 국가시험 71~90번</p><b className="mt-6 block text-[#176b5b]">국시 문제 풀기 →</b></button><button onClick={() => setView('bookSubjects')} className="subject-card card p-6 text-left"><span className="grid h-14 w-14 place-items-center rounded-2xl bg-[#fff2dc] text-3xl">📚</span><p className="eyebrow mt-5">PART 03</p><h2 className="mt-1 text-2xl font-black">교재 문제</h2><p className="mt-2 text-sm leading-6 text-[#667085]">공중보건학·의료관계법규 {totalBookChapters}개 챕터, 총 {totalBookQuestions}문항</p><b className="mt-6 block text-[#176b5b]">교재 문제 선택하기 →</b></button></div></section>}
 
     {view === 'bookSubjects' && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('subjects')}>← 파트 다시 선택</button><div className="mt-5"><p className="eyebrow">교재 문제</p><h1 className="text-3xl font-black tracking-tight">과목을 선택하세요</h1><p className="mt-2 text-[#667085]">과목을 선택한 다음 챕터별로 학습할 수 있습니다.</p></div><div className="mt-7 grid gap-4 sm:grid-cols-2">{bookSubjects.filter((subject) => subject.chapters.some((chapter) => isVisible(`book-${subject.id}-${chapter.id}`))).map((subject) => { const visibleChapters = subject.chapters.filter((chapter) => isVisible(`book-${subject.id}-${chapter.id}`)); const count = visibleChapters.reduce((total, chapter) => total + chapter.questions.length, 0); const isPublicHealth = subject.id === 'public-health'; return <button key={subject.id} onClick={() => chooseBookSubject(subject.id)} className="subject-card card p-6 text-left"><span className={`grid h-14 w-14 place-items-center rounded-2xl text-3xl ${isPublicHealth ? 'bg-[#e7f3f0]' : 'bg-[#eef1ff]'}`}>{isPublicHealth ? '🌿' : '⚖️'}</span><h2 className="mt-5 text-2xl font-black">{isPublicHealth ? '공중보건학' : '의료관계법규'}</h2><p className="mt-2 text-sm text-[#667085]">{visibleChapters.length}개 챕터 · {count}문항</p><b className="mt-6 block text-[#176b5b]">챕터 선택하기 →</b></button>; })}</div></section>}
 
-    {view === 'chapters' && selectedBookSubject && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('bookSubjects')}>← 교재 과목 다시 선택</button><div className="mt-5"><p className="eyebrow">교재 문제</p><h1 className="text-3xl font-black tracking-tight">{selectedBookSubject.id === 'public-health' ? '공중보건학' : '의료관계법규'}</h1><p className="mt-2 text-[#667085]">학습할 챕터를 선택하세요.</p></div><div className="mt-7 grid gap-3">{selectedBookSubject.chapters.filter((chapter) => isVisible(`book-${selectedBookSubject.id}-${chapter.id}`)).map((chapter) => <button key={chapter.id} onClick={() => chooseChapter(chapter)} className="card flex items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:border-[#9ec7bd]"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#f1f4f8] font-black text-[#176b5b]">{chapter.number}</span><span className="min-w-0 flex-1"><b className="block text-lg">{chapter.title}</b><small className="mt-1 block text-[#778195]">{chapter.questions.length}문항</small></span><span className="text-[#176b5b]">→</span></button>)}</div></section>}
+    {view === 'chapters' && selectedBookSubject && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('bookSubjects')}>← 교재 과목 다시 선택</button><div className="mt-5"><p className="eyebrow">교재 문제</p><h1 className="text-3xl font-black tracking-tight">{selectedBookSubject.id === 'public-health' ? '공중보건학' : '의료관계법규'}</h1><p className="mt-2 text-[#667085]">학습할 챕터를 선택하세요.</p></div><div className="mt-7 grid gap-3">{selectedBookSubject.chapters.filter((chapter) => isVisible(`book-${selectedBookSubject.id}-${chapter.id}`)).map((chapter) => <button key={chapter.id} onClick={() => chooseChapter(chapter)} className="card flex items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:border-[#9ec7bd]"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#f1f4f8] font-black text-[#176b5b]">{chapter.sampleSize ? '감염' : chapter.number}</span><span className="min-w-0 flex-1"><b className="block text-lg">{chapter.title}</b><small className="mt-1 block text-[#778195]">{chapter.sampleSize ? `${chapter.questions.length}문항 중 ${chapter.sampleSize}문항 랜덤 출제` : `${chapter.questions.length}문항`}</small></span><span className="text-[#176b5b]">→</span></button>)}</div></section>}
 
     {view === 'sets' && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('subjects')}>← 파트 다시 선택</button><div className="mt-5"><p className="eyebrow">STEP 03</p><h1 className="text-3xl font-black tracking-tight">{selectedSubject === '의료관계법규' ? '의료법규' : selectedSubject} 문제</h1><p className="mt-2 text-[#667085]">풀 문제 세트를 선택하세요.</p></div><div className="mt-7 grid gap-4">{sets.filter((s) => s.published && isVisible(s.id) && s.subject === selectedSubject).map((set) => <button key={set.id} onClick={() => choose(set)} className="card flex items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:border-[#9ec7bd]"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#e7f3f0] text-xl">📘</span><span className="min-w-0 flex-1"><b className="block text-lg">{set.title}</b><small className="mt-1 block text-[#778195]">{set.description || set.subject} · {set.questions.length}문제</small></span><span className="text-[#176b5b]">→</span></button>)}</div></section>}
 
@@ -283,7 +314,7 @@ export default function Home() {
 
     {view === 'admin' && !adminAuthenticated && <section className="mx-auto max-w-md px-5 py-12"><form className="card p-7" onSubmit={loginAdmin}><span className="pill">관리자</span><h1 className="mt-4 text-3xl font-black">관리자 로그인</h1><p className="mt-2 text-sm text-[#667085]">문제 공개 상태를 변경하려면 로그인하세요.</p><div className="mt-6 grid gap-4"><div><label className="field-label">아이디</label><input className="field" autoComplete="username" value={adminLogin.id} onChange={(e) => setAdminLogin({...adminLogin, id:e.target.value})}/></div><div><label className="field-label">비밀번호</label><input className="field" type="password" autoComplete="current-password" value={adminLogin.password} onChange={(e) => setAdminLogin({...adminLogin, password:e.target.value})}/></div></div><button className="primary mt-6">로그인</button></form></section>}
 
-    {view === 'admin' && adminAuthenticated && <section className="mx-auto max-w-4xl px-5 py-9"><div className="flex items-start justify-between gap-4"><div><span className="pill">관리자</span><h1 className="mt-4 text-3xl font-black">문제 공개 관리</h1><p className="mt-2 text-[#667085]">버튼을 끄면 학생 화면에서 해당 문제 세트가 숨겨집니다.</p></div><button className="secondary max-w-28" onClick={() => setAdminAuthenticated(false)}>로그아웃</button></div><div className="mt-7 grid gap-6"><div><h2 className="mb-3 text-xl font-extrabold">2025년도 국가시험</h2><div className="grid gap-3">{sets.map((s) => <div className="card flex items-center justify-between gap-4 p-4" key={s.id}><div><b>{s.title}</b><p className="mt-1 text-sm text-[#7a8496]">{s.subject} · {s.questions.length}문제</p></div><button type="button" role="switch" aria-checked={isVisible(s.id)} onClick={() => toggleVisibility(s.id)} className={`min-w-20 rounded-full px-4 py-2 text-sm font-extrabold text-white ${isVisible(s.id) ? 'bg-[#176b5b]' : 'bg-[#98a2b3]'}`}>{isVisible(s.id) ? '공개 중' : '숨김'}</button></div>)}</div></div>{bookSubjects.map((subject) => <div key={subject.id}><h2 className="mb-3 text-xl font-extrabold">교재 문제 · {subject.id === 'public-health' ? '공중보건학' : '의료관계법규'}</h2><div className="grid gap-3 sm:grid-cols-2">{subject.chapters.map((chapter) => { const id = `book-${subject.id}-${chapter.id}`; return <div className="card flex items-center justify-between gap-3 p-4" key={id}><div><b>{chapter.number}장 {chapter.title}</b><p className="mt-1 text-sm text-[#7a8496]">{chapter.questions.length}문항</p></div><button type="button" role="switch" aria-checked={isVisible(id)} onClick={() => toggleVisibility(id)} className={`min-w-20 rounded-full px-4 py-2 text-sm font-extrabold text-white ${isVisible(id) ? 'bg-[#176b5b]' : 'bg-[#98a2b3]'}`}>{isVisible(id) ? '공개 중' : '숨김'}</button></div>; })}</div></div>)}</div></section>}
+    {view === 'admin' && adminAuthenticated && <section className="mx-auto max-w-4xl px-5 py-9"><div className="flex items-start justify-between gap-4"><div><span className="pill">관리자</span><h1 className="mt-4 text-3xl font-black">문제 공개 관리</h1><p className="mt-2 text-[#667085]">버튼을 끄면 학생 화면에서 해당 문제 세트가 숨겨집니다.</p></div><button className="secondary max-w-28" onClick={() => setAdminAuthenticated(false)}>로그아웃</button></div><div className="mt-7 grid gap-6"><div><h2 className="mb-3 text-xl font-extrabold">2025년도 국가시험</h2><div className="grid gap-3">{sets.map((s) => <div className="card flex items-center justify-between gap-4 p-4" key={s.id}><div><b>{s.title}</b><p className="mt-1 text-sm text-[#7a8496]">{s.subject} · {s.questions.length}문제</p></div><button type="button" role="switch" aria-checked={isVisible(s.id)} onClick={() => toggleVisibility(s.id)} className={`min-w-20 rounded-full px-4 py-2 text-sm font-extrabold text-white ${isVisible(s.id) ? 'bg-[#176b5b]' : 'bg-[#98a2b3]'}`}>{isVisible(s.id) ? '공개 중' : '숨김'}</button></div>)}</div></div>{bookSubjects.map((subject) => <div key={subject.id}><h2 className="mb-3 text-xl font-extrabold">교재 문제 · {subject.id === 'public-health' ? '공중보건학' : '의료관계법규'}</h2><div className="grid gap-3 sm:grid-cols-2">{subject.chapters.map((chapter) => { const id = `book-${subject.id}-${chapter.id}`; return <div className="card flex items-center justify-between gap-3 p-4" key={id}><div><b>{chapter.sampleSize ? '' : `${chapter.number}장 `}{chapter.title}</b><p className="mt-1 text-sm text-[#7a8496]">{chapter.sampleSize ? `${chapter.questions.length}문항 중 ${chapter.sampleSize}문항 랜덤` : `${chapter.questions.length}문항`}</p></div><button type="button" role="switch" aria-checked={isVisible(id)} onClick={() => toggleVisibility(id)} className={`min-w-20 rounded-full px-4 py-2 text-sm font-extrabold text-white ${isVisible(id) ? 'bg-[#176b5b]' : 'bg-[#98a2b3]'}`}>{isVisible(id) ? '공개 중' : '숨김'}</button></div>; })}</div></div>)}</div></section>}
     {toast && <div role="status" className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-[#172338] px-5 py-3 text-sm font-bold text-white shadow-xl">{toast}</div>}
   </main>;
 }
