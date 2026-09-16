@@ -29,9 +29,9 @@ function doPost(e) {
 
     const rootFolder = DriveApp.getFolderById(ROOT_FOLDER_ID);
     const schoolFolder = getOrCreateFolder_(rootFolder, convertSchoolName_(data.school));
-    const subjectName = findSubjectName_(data.setId, data.subject);
+    const subjectName = findSubjectName_(data.setId, data.subject, data.setTitle);
     const subjectFolder = getOrCreateFolder_(schoolFolder, subjectName);
-    const fileName = findFileName_(data.setId, subjectName);
+    const fileName = findFileName_(data.setId, subjectName, data.setTitle);
     const spreadsheet = getOrCreateSpreadsheet_(subjectFolder, fileName);
     const sheetName = findSheetName_(data.setId, data.setTitle);
     const sheet = getOrCreateSheet_(spreadsheet, sheetName);
@@ -107,22 +107,55 @@ function convertSchoolName_(school) {
   return safeName_(value || '기타 학교');
 }
 
-function findSubjectName_(setId, suppliedSubject) {
-  const id = String(setId || '').toLowerCase();
-  const subject = String(suppliedSubject || '');
+function normalizeRouteText_(value) {
+  return String(value || '').toLowerCase().replace(/\s+/g, '');
+}
 
-  if (id.indexOf('book-public-health-') === 0 || id === '2025-public-health') return '공중보건';
-  if (id.indexOf('book-medical-law-') === 0 || id === '2025-medical-law') return '의료법규';
-  if (subject.indexOf('공중보건') !== -1) return '공중보건';
-  if (subject.indexOf('의료') !== -1 || subject.indexOf('법규') !== -1) return '의료법규';
+function isBookPublicHealth_(setId, suppliedSubject, setTitle) {
+  const id = normalizeRouteText_(setId);
+  const subject = normalizeRouteText_(suppliedSubject);
+  const title = normalizeRouteText_(setTitle);
+
+  return id.indexOf('book-public-health-') === 0 ||
+    id.indexOf('public-infectious-diseases') !== -1 ||
+    subject.indexOf('공중보건') !== -1 ||
+    title.indexOf('교재문제·공중보건') !== -1 ||
+    title.indexOf('교재공중보건') !== -1;
+}
+
+function isBookMedicalLaw_(setId, suppliedSubject, setTitle) {
+  const id = normalizeRouteText_(setId);
+  const subject = normalizeRouteText_(suppliedSubject);
+  const title = normalizeRouteText_(setTitle);
+
+  return id.indexOf('book-medical-law-') === 0 ||
+    subject.indexOf('의료관계법규') !== -1 ||
+    subject.indexOf('의료법규') !== -1 ||
+    title.indexOf('교재문제·의료관계법규') !== -1 ||
+    title.indexOf('교재의료관계법규') !== -1;
+}
+
+function isBookSubmission_(setId, setTitle) {
+  const id = normalizeRouteText_(setId);
+  const title = normalizeRouteText_(setTitle);
+  return id.indexOf('book-') === 0 || title.indexOf('교재') !== -1;
+}
+
+function findSubjectName_(setId, suppliedSubject, setTitle) {
+  const id = normalizeRouteText_(setId);
+
+  if (isBookPublicHealth_(setId, suppliedSubject, setTitle)) return '공중보건';
+  if (isBookMedicalLaw_(setId, suppliedSubject, setTitle)) return '의료법규';
+  if (id === '2025-public-health') return '공중보건';
+  if (id === '2025-medical-law') return '의료법규';
   return '기타 문제';
 }
 
-function findFileName_(setId, subjectName) {
-  const id = String(setId || '').toLowerCase();
+function findFileName_(setId, subjectName, setTitle) {
+  const id = normalizeRouteText_(setId);
 
-  if (id.indexOf('book-public-health-') === 0) return '교재 공중보건학';
-  if (id.indexOf('book-medical-law-') === 0) return '교재 의료관계법규';
+  if (isBookSubmission_(setId, setTitle) && subjectName === '공중보건') return '교재 공중보건학';
+  if (isBookSubmission_(setId, setTitle) && subjectName === '의료법규') return '교재 의료관계법규';
   if (id === '2025-public-health') return '2025공중보건';
   if (id === '2025-medical-law') return '2025의료법규';
   return safeName_(subjectName + ' 응답');
