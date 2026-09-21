@@ -75,13 +75,13 @@ const ADMIN_ID = 'admin';
 const ADMIN_PASSWORD = 'admin';
 
 function sampleQuestions(questions: BookQuestion[], count?: number) {
-  if (!count || count >= questions.length) return questions;
+  if (!count) return questions;
   const shuffled = [...questions];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const randomIndex = Math.floor(Math.random() * (index + 1));
     [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
   }
-  return shuffled.slice(0, count);
+  return shuffled.slice(0, Math.min(count, questions.length));
 }
 
 export default function Home() {
@@ -95,6 +95,7 @@ export default function Home() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [current, setCurrent] = useState(0);
   const [jumpNumber, setJumpNumber] = useState('');
+  const [infectiousQuestionCount, setInfectiousQuestionCount] = useState(30);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
@@ -131,17 +132,20 @@ export default function Home() {
   function chooseSubject(subject: string) { setActiveBookSet(null); setSelectedSubject(subject); setView('sets'); window.scrollTo(0, 0); }
   function choose(set: QuizSet) { setActiveBookSet(null); setSelectedId(set.id); setAnswers({}); setCurrent(0); setJumpNumber(''); setSubmitted(false); setView('quiz'); window.scrollTo(0, 0); }
   function chooseBookSubject(subjectId: string) { setBookSubjectId(subjectId); setView('chapters'); window.scrollTo(0, 0); }
-  function chooseChapter(chapter: BookChapter) {
+  function chooseChapter(chapter: BookChapter, requestedSampleSize?: number) {
     if (!selectedBookSubject) return;
     const subjectLabel = selectedBookSubject.id === 'public-health' ? '공중보건학' : '의료관계법규';
-    const questions = sampleQuestions(chapter.questions, chapter.sampleSize);
+    const sampleSize = chapter.sampleSize
+      ? Math.max(1, Math.min(requestedSampleSize ?? chapter.sampleSize, chapter.questions.length))
+      : undefined;
+    const questions = sampleQuestions(chapter.questions, sampleSize);
     const quizSet: QuizSet = {
       id: `book-${selectedBookSubject.id}-${chapter.id}`,
-      title: chapter.sampleSize
+      title: sampleSize
         ? `교재 문제 · ${subjectLabel} · ${chapter.title}`
         : `교재 문제 · ${subjectLabel} · ${chapter.number}장 ${chapter.title}`,
       subject: subjectLabel,
-      description: chapter.sampleSize ? `${subjectLabel} 감염병 랜덤 문제` : `${subjectLabel} ${chapter.number}장`,
+      description: sampleSize ? `${subjectLabel} 감염병 ${sampleSize}문항 랜덤 문제` : `${subjectLabel} ${chapter.number}장`,
       published: true,
       questions: questions.map((question) => ({
         id: `book-${selectedBookSubject.id}-${chapter.id}-${question.id}`,
@@ -312,7 +316,7 @@ export default function Home() {
 
     {view === 'bookSubjects' && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('subjects')}>← 파트 다시 선택</button><div className="mt-5"><p className="eyebrow">교재 문제</p><h1 className="text-3xl font-black tracking-tight">과목을 선택하세요</h1><p className="mt-2 text-[#667085]">과목을 선택한 다음 챕터별로 학습할 수 있습니다.</p></div><div className="mt-7 grid gap-4 sm:grid-cols-2">{bookSubjects.filter((subject) => subject.chapters.some((chapter) => isVisible(`book-${subject.id}-${chapter.id}`))).map((subject) => { const visibleChapters = subject.chapters.filter((chapter) => isVisible(`book-${subject.id}-${chapter.id}`)); const count = visibleChapters.reduce((total, chapter) => total + chapter.questions.length, 0); const isPublicHealth = subject.id === 'public-health'; return <button key={subject.id} onClick={() => chooseBookSubject(subject.id)} className="subject-card card p-6 text-left"><span className={`grid h-14 w-14 place-items-center rounded-2xl text-3xl ${isPublicHealth ? 'bg-[#e7f3f0]' : 'bg-[#eef1ff]'}`}>{isPublicHealth ? '🌿' : '⚖️'}</span><h2 className="mt-5 text-2xl font-black">{isPublicHealth ? '공중보건학' : '의료관계법규'}</h2><p className="mt-2 text-sm text-[#667085]">{visibleChapters.length}개 챕터 · {count}문항</p><b className="mt-6 block text-[#176b5b]">챕터 선택하기 →</b></button>; })}</div></section>}
 
-    {view === 'chapters' && selectedBookSubject && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('bookSubjects')}>← 교재 과목 다시 선택</button><div className="mt-5"><p className="eyebrow">교재 문제</p><h1 className="text-3xl font-black tracking-tight">{selectedBookSubject.id === 'public-health' ? '공중보건학' : '의료관계법규'}</h1><p className="mt-2 text-[#667085]">학습할 챕터를 선택하세요.</p></div><div className="mt-7 grid gap-3">{selectedBookSubject.chapters.filter((chapter) => isVisible(`book-${selectedBookSubject.id}-${chapter.id}`)).map((chapter) => <button key={chapter.id} onClick={() => chooseChapter(chapter)} className="card flex items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:border-[#9ec7bd]"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#f1f4f8] font-black text-[#176b5b]">{chapter.sampleSize ? '감염' : chapter.number}</span><span className="min-w-0 flex-1"><b className="block text-lg">{chapter.title}</b><small className="mt-1 block text-[#778195]">{chapter.sampleSize ? `${chapter.questions.length}문항 중 ${chapter.sampleSize}문항 랜덤 출제` : `${chapter.questions.length}문항`}</small></span><span className="text-[#176b5b]">→</span></button>)}</div></section>}
+    {view === 'chapters' && selectedBookSubject && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('bookSubjects')}>← 교재 과목 다시 선택</button><div className="mt-5"><p className="eyebrow">교재 문제</p><h1 className="text-3xl font-black tracking-tight">{selectedBookSubject.id === 'public-health' ? '공중보건학' : '의료관계법규'}</h1><p className="mt-2 text-[#667085]">학습할 챕터를 선택하세요.</p></div><div className="mt-7 grid gap-3">{selectedBookSubject.chapters.filter((chapter) => isVisible(`book-${selectedBookSubject.id}-${chapter.id}`)).map((chapter) => chapter.sampleSize ? <div key={chapter.id} className="card p-5"><div className="flex items-center gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#f1f4f8] font-black text-[#176b5b]">감염</span><span className="min-w-0 flex-1"><b className="block text-lg">{chapter.title}</b><small className="mt-1 block text-[#778195]">전체 {chapter.questions.length}문항에서 무작위 출제</small></span></div><div className="mt-4 flex items-end gap-2"><label className="min-w-0 flex-1 text-sm font-bold text-[#344054]">출제 문항 수<input type="number" inputMode="numeric" min={1} max={chapter.questions.length} value={infectiousQuestionCount} onChange={(e) => setInfectiousQuestionCount(Math.max(1, Math.min(Number(e.target.value) || 1, chapter.questions.length)))} className="mt-2 w-full rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-base text-[#101828]" /></label><button type="button" onClick={() => chooseChapter(chapter, infectiousQuestionCount)} className="primary shrink-0">랜덤 출제</button></div><div className="mt-3 flex flex-wrap gap-2">{[10, 20, 30, 50, 100].filter((count) => count <= chapter.questions.length).map((count) => <button type="button" key={count} onClick={() => setInfectiousQuestionCount(count)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${infectiousQuestionCount === count ? 'bg-[#176b5b] text-white' : 'bg-[#eef2f6] text-[#475467]'}`}>{count}문제</button>)}</div></div> : <button key={chapter.id} onClick={() => chooseChapter(chapter)} className="card flex items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:border-[#9ec7bd]"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#f1f4f8] font-black text-[#176b5b]">{chapter.number}</span><span className="min-w-0 flex-1"><b className="block text-lg">{chapter.title}</b><small className="mt-1 block text-[#778195]">{chapter.questions.length}문항</small></span><span className="text-[#176b5b]">→</span></button>)}</div></section>}
 
     {view === 'sets' && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('subjects')}>← 파트 다시 선택</button><div className="mt-5"><p className="eyebrow">STEP 03</p><h1 className="text-3xl font-black tracking-tight">{selectedSubject === '의료관계법규' ? '의료법규' : selectedSubject} 문제</h1><p className="mt-2 text-[#667085]">풀 문제 세트를 선택하세요.</p></div><div className="mt-7 grid gap-4">{sets.filter((s) => s.published && isVisible(s.id) && s.subject === selectedSubject).map((set) => <button key={set.id} onClick={() => choose(set)} className="card flex items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:border-[#9ec7bd]"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#e7f3f0] text-xl">📘</span><span className="min-w-0 flex-1"><b className="block text-lg">{set.title}</b><small className="mt-1 block text-[#778195]">{set.description || set.subject} · {set.questions.length}문제</small></span><span className="text-[#176b5b]">→</span></button>)}</div></section>}
 
