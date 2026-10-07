@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import bookQuestionBank from './book-question-bank.json';
 import { infectiousDiseaseQuestions } from './infectious-disease-question-bank';
 import { practice50Questions } from './practice-50-question-bank';
+import { edu2024Questions } from './edu-2024-question-bank';
 
 type Question = { id: string; text: string; options: string[]; answer: number | number[] };
 type QuizSet = { id: string; title: string; subject: string; description: string; questions: Question[]; published: boolean };
@@ -82,9 +83,15 @@ const practice50Chapter: BookChapter = {
   title: '연습문제 50',
   questions: practice50Questions,
 };
+const edu2024Chapter: BookChapter = {
+  id: 'public-edu-2024-mock',
+  number: 18,
+  title: '2024 에듀 모의고사',
+  questions: edu2024Questions,
+};
 const bookSubjects: BookSubject[] = baseBookSubjects.map((subject) =>
   subject.id === 'public-health'
-    ? { ...subject, chapters: [...subject.chapters, infectiousDiseaseChapter, practice50Chapter] }
+    ? { ...subject, chapters: [...subject.chapters, infectiousDiseaseChapter, practice50Chapter, edu2024Chapter] }
     : subject,
 );
 const totalBookChapters = bookSubjects.reduce((total, subject) => total + subject.chapters.length, 0);
@@ -173,14 +180,14 @@ export default function Home() {
       id: `book-${selectedBookSubject.id}-${chapter.id}`,
       title: sampleSize
         ? `교재 문제 · ${subjectLabel} · ${chapter.title}`
-        : chapter.id === practice50Chapter.id
+        : chapter.id === practice50Chapter.id || chapter.id === edu2024Chapter.id
           ? `교재 문제 · ${subjectLabel} · ${chapter.title}`
           : `교재 문제 · ${subjectLabel} · ${chapter.number}장 ${chapter.title}`,
       subject: subjectLabel,
       description: sampleSize
         ? `${subjectLabel} 감염병 ${sampleSize}문항 랜덤 문제`
-        : chapter.id === practice50Chapter.id
-          ? `${subjectLabel} 연습문제 50문항`
+        : chapter.id === practice50Chapter.id || chapter.id === edu2024Chapter.id
+          ? `${subjectLabel} ${chapter.title} ${chapter.questions.length}문항`
           : `${subjectLabel} ${chapter.number}장`,
       published: true,
       questions: questions.map((question) => ({
