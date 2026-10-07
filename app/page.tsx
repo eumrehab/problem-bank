@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import bookQuestionBank from './book-question-bank.json';
 import { infectiousDiseaseQuestions } from './infectious-disease-question-bank';
+import { practice50Questions } from './practice-50-question-bank';
 
 type Question = { id: string; text: string; options: string[]; answer: number | number[] };
 type QuizSet = { id: string; title: string; subject: string; description: string; questions: Question[]; published: boolean };
@@ -75,9 +76,15 @@ const infectiousDiseaseChapter: BookChapter = {
   questions: infectiousDiseaseQuestions,
   sampleSize: 30,
 };
+const practice50Chapter: BookChapter = {
+  id: 'public-practice-50',
+  number: 17,
+  title: '연습문제 50',
+  questions: practice50Questions,
+};
 const bookSubjects: BookSubject[] = baseBookSubjects.map((subject) =>
   subject.id === 'public-health'
-    ? { ...subject, chapters: [...subject.chapters, infectiousDiseaseChapter] }
+    ? { ...subject, chapters: [...subject.chapters, infectiousDiseaseChapter, practice50Chapter] }
     : subject,
 );
 const totalBookChapters = bookSubjects.reduce((total, subject) => total + subject.chapters.length, 0);
@@ -166,9 +173,15 @@ export default function Home() {
       id: `book-${selectedBookSubject.id}-${chapter.id}`,
       title: sampleSize
         ? `교재 문제 · ${subjectLabel} · ${chapter.title}`
-        : `교재 문제 · ${subjectLabel} · ${chapter.number}장 ${chapter.title}`,
+        : chapter.id === practice50Chapter.id
+          ? `교재 문제 · ${subjectLabel} · ${chapter.title}`
+          : `교재 문제 · ${subjectLabel} · ${chapter.number}장 ${chapter.title}`,
       subject: subjectLabel,
-      description: sampleSize ? `${subjectLabel} 감염병 ${sampleSize}문항 랜덤 문제` : `${subjectLabel} ${chapter.number}장`,
+      description: sampleSize
+        ? `${subjectLabel} 감염병 ${sampleSize}문항 랜덤 문제`
+        : chapter.id === practice50Chapter.id
+          ? `${subjectLabel} 연습문제 50문항`
+          : `${subjectLabel} ${chapter.number}장`,
       published: true,
       questions: questions.map((question) => ({
         id: `book-${selectedBookSubject.id}-${chapter.id}-${question.id}`,
