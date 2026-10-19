@@ -323,15 +323,20 @@ export default function Home() {
         if (pending) payload = JSON.parse(pending) as typeof payload;
         else localStorage.setItem(pendingKey, JSON.stringify(payload));
       }
-      const response = await fetch('/api/submissions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const result = await response.json() as { ok?: boolean; message?: string; attemptId?: string; score?: number; submittedAt?: string };
-      if (!response.ok || result.ok !== true) throw new Error(result.message || '저장을 확인하지 못했습니다.');
-      // A different attempt for this student/set must not display this attempt's score.
-      if (result.attemptId && result.attemptId !== attemptId) throw new Error('이미 제출한 회차입니다. 담당 교수님에게 확인해 주세요.');
-      const confirmedTime = result.submittedAt || submittedDate.toLocaleString('ko-KR');
-      const confirmedScore = selected.id === healthSet.id ? result.score : undefined;
+      // GitHub Pages is a static host, so it cannot serve this project's
+      // /api/submissions route. Send the payload to the existing Apps Script
+      // web app directly, as the other quiz sets do.
+      const endpoint = process.env.NEXT_PUBLIC_GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL;
+      await fetch(endpoint, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+      });
+      const confirmedTime = submittedDate.toLocaleString('ko-KR');
+      const confirmedScore = selected.id === healthSet.id ? score : undefined;
       const confirmedAnswers = Object.fromEntries(payload.answers.map(a => [a.questionId, a.selected]));
-      if (selected.id === healthSet.id && (!Number.isInteger(confirmedScore) || !result.attemptId)) throw new Error('저장 확인 응답을 확인해 주세요.');
+      if (selected.id === healthSet.id) localStorage.removeItem(`campus-pending:${attemptId}`);
       try {
         const key = attemptKey(student, selected.id);
         localStorage.setItem(key, JSON.stringify({ version: 1, student, set: selected, answers: confirmedAnswers, current,
