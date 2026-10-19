@@ -14,6 +14,10 @@ function doPost(e) {
 
     const data = JSON.parse(e.postData.contents);
 
+    if (data.setId === 'health-indicators-ch15-v1') {
+      return saveHealthIndicatorSubmission_(data);
+    }
+
     if (data.action === 'setVisibility') {
       return setVisibility_(data);
     }
@@ -290,4 +294,60 @@ function jsonResponse_(data) {
   return ContentService
     .createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Runs under doPost's script-wide lock. The response row itself is the durable
+// idempotency record: retries after timeouts cannot create an extra row.
+function saveHealthIndicatorSubmission_(data) {
+  if (typeof HEALTH_INDICATORS_BANK === 'undefined' || HEALTH_INDICATORS_BANK.length !== 30) {
+    throw new Error('15장 특별 문제 원문 등록이 아직 완료되지 않았습니다.');
+  }
+  const school = String(data.school || '').trim();
+  const studentId = String(data.studentId || '').trim();
+  const name = String(data.name || '').trim();
+  if (['인제대학교', '동명대학교', '경남대학교'].indexOf(school) === -1 ||
+      !studentId || studentId.length > 40 || !name || name.length > 80 ||
+      !/^[a-zA-Z0-9-]{20,80}$/.test(String(data.attemptId || ''))) {
+    throw new Error('학교, 학번, 이름, 응시 ID를 확인해 주세요.');
+  }
+  if (!Array.isArray(data.answers) || data.answers.length !== 20 ||
+      !Array.isArray(data.questionIds) || data.questionIds.length !== 20 ||
+      new Set(data.questionIds).size !== 20) throw new Error('서로 다른 20문항이 필요합니다.');
+  let score = 0;
+  const answers = data.answers.map(function(answer, index) {
+    if (answer.questionId !== data.questionIds[index]) throw new Error('문항 순서가 일치하지 않습니다.');
+    const question = HEALTH_INDICATORS_BANK.find(function(q) { return q.id === answer.questionId; });
+    const order = answer.optionOrder;
+    if (!question || !Array.isArray(order) || order.length !== 5 ||
+        [0, 1, 2, 3, 4].some(function(n) { return order.indexOf(n) === -1; }) ||
+        !Number.isInteger(answer.selected) || answer.selected < 0 || answer.selected > 4) {
+      throw new Error('문항 또는 보기 매핑이 올바르지 않습니다.');
+    }
+    const originalSelected = order[answer.selected];
+    if (originalSelected === question.answer) score++;
+    return { questionId: question.id, displayedSelected: answer.selected + 1,
+      originalSelected: originalSelected + 1, originalCorrect: question.answer + 1, optionOrder: order.map(function(n) { return n + 1; }) };
+  });
+  const folder = DriveApp.getFolderById(ROOT_FOLDER_ID);
+  const spreadsheet = getOrCreateSpreadsheet_(folder, '15장 특별 문제 — 보건지표 응답');
+  const sheet = getOrCreateSheet_(spreadsheet, '응답');
+  const headers = ['학교', '학번', '이름', '세트ID', '세트명', '20개 문항 ID', '응답JSON', '정답수', '점수(100점)', '제출시각', '응시ID'];
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]); sheet.setFrozenRows(1);
+  }
+  const rows = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues() : [];
+  const existing = rows.find(function(row) {
+    return String(row[0]) === school && String(row[1]).replace(/^'/, '') === studentId && String(row[3]) === data.setId;
+  });
+  if (existing) {
+    // Do not reveal a different student's result through an unauthenticated retry.
+    if (existing[10] !== data.attemptId) throw new Error('이 학교·학번은 해당 회차에 이미 제출했습니다.');
+    return jsonResponse_({ ok: true, duplicate: true, attemptId: existing[10], score: existing[7], total: 20, submittedAt: existing[9] });
+  }
+  const timestamp = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm:ss');
+  // Prefix user-entered cells to retain leading zeroes and prevent formulas.
+  sheet.appendRow([school, "'" + studentId, "'" + name, data.setId, '15장 특별 문제 — 보건지표',
+    JSON.stringify(data.questionIds), JSON.stringify(answers), score, score * 5, timestamp, data.attemptId]);
+  SpreadsheetApp.flush();
+  return jsonResponse_({ ok: true, duplicate: false, attemptId: data.attemptId, score: score, total: 20, submittedAt: timestamp });
 }

@@ -5,8 +5,10 @@ import bookQuestionBank from './book-question-bank.json';
 import { infectiousDiseaseQuestions } from './infectious-disease-question-bank';
 import { practice50Questions } from './practice-50-question-bank';
 import { edu2024Questions } from './edu-2024-question-bank';
+import healthBank from './health-indicators.json';
+import { randomizeQuiz, validateHealthBank } from './quiz-random';
 
-type Question = { id: string; text: string; options: string[]; answer: number | number[] };
+type Question = { id: string; text: string; options: string[]; answer: number | number[]; optionOrder?: number[] };
 type QuizSet = { id: string; title: string; subject: string; description: string; questions: Question[]; published: boolean };
 type Student = { school: string; studentId: string; name: string };
 type BookQuestion = { id: number; prompt: string; options: string[]; answer: number | number[] };
@@ -68,6 +70,16 @@ const initialSets: QuizSet[] = [
 ];
 
 const schools = ['인제대학교', '동명대학교', '경남대학교'];
+const healthQuestions: Question[] = healthBank.questions;
+let healthReady = false;
+try { validateHealthBank(healthQuestions); healthReady = healthBank.status === 'ready'; } catch {}
+const healthSet: QuizSet = { id: healthBank.id, title: healthBank.title, subject: '공중보건',
+  description: '제15장 보건통계 · 보건지표 30문항 중 무작위 20문항', questions: healthQuestions, published: healthReady };
+type SavedAttempt = { version: 1; student: Student; set: QuizSet; answers: Record<string, number>;
+  current: number; submitted: boolean; submittedAt: string; attemptId: string; serverScore?: number };
+function attemptKey(student: Student, setId: string) {
+  return `campus-attempt-v1:${JSON.stringify([student.school, student.studentId.trim(), setId])}`;
+}
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwyr8KcVlvSz4nALEXj2vrN-UUlo_uVLPMsBc99jk4ck6xIeVfXgEINFz1hFbMpaQbj/exec';
 const baseBookSubjects = bookQuestionBank as BookSubject[];
 const infectiousDiseaseChapter: BookChapter = {
@@ -144,6 +156,24 @@ export default function Home() {
   const [visibilitySyncReady, setVisibilitySyncReady] = useState(false);
   const [adminAuthenticated, setAdminAuthenticated] = useState(false);
   const [adminLogin, setAdminLogin] = useState({ id: '', password: '' });
+  const [attemptId, setAttemptId] = useState('');
+  const [storageReady, setStorageReady] = useState(false);
+  const [serverScore, setServerScore] = useState<number | undefined>();
+
+  useEffect(() => {
+    try {
+      const key = localStorage.getItem('campus-active-attempt');
+      const saved: SavedAttempt | null = key ? JSON.parse(localStorage.getItem(key) || 'null') : null;
+      if (saved?.version === 1 && saved.set?.questions?.length && saved.attemptId) {
+        setStudent(saved.student); setActiveBookSet(saved.set); setSelectedId(saved.set.id);
+        setSelectedSubject(saved.set.subject); setAnswers(saved.answers); setCurrent(Math.min(saved.current, saved.set.questions.length - 1));
+        setAttemptId(saved.attemptId); setSubmitted(saved.submitted); setSubmittedAt(saved.submittedAt);
+        setServerScore(saved.serverScore);
+        setView(saved.submitted ? 'result' : 'quiz');
+      }
+    } catch { setToast('이 기기에 저장된 응시 정보를 읽지 못했습니다.'); }
+    setStorageReady(true);
+  }, []);
 
   useEffect(() => { const saved = localStorage.getItem('campus-quiz-sets-2025'); if (saved) { try { setSets(JSON.parse(saved)); } catch {} } }, []);
   useEffect(() => {
@@ -156,18 +186,42 @@ export default function Home() {
       .catch(() => {});
   }, []);
   const selected = useMemo(() => activeBookSet?.id === selectedId ? activeBookSet : sets.find((s) => s.id === selectedId), [activeBookSet, sets, selectedId]);
+  useEffect(() => {
+    if (!storageReady || !selected || !attemptId || (view !== 'quiz' && view !== 'result')) return;
+    try {
+      const key = attemptKey(student, selected.id);
+      const saved: SavedAttempt = { version: 1, student, set: selected, answers, current, submitted, submittedAt, attemptId, serverScore };
+      localStorage.setItem(key, JSON.stringify(saved)); localStorage.setItem('campus-active-attempt', key);
+    } catch { setToast('자동 저장 공간이 부족하거나 차단되어 있습니다. 이 창을 유지해 주세요.'); }
+  }, [storageReady, selected, student, answers, current, submitted, submittedAt, attemptId, view, serverScore]);
   const selectedBookSubject = useMemo(() => bookSubjects.find((subject) => subject.id === bookSubjectId), [bookSubjectId]);
   const allowsPartialSubmission = selected?.id.startsWith('book-medical-law-') ?? false;
   const answeredQuestions = selected ? selected.questions.filter((question) => answers[question.id] !== undefined) : [];
   const gradingQuestions = allowsPartialSubmission ? answeredQuestions : (selected?.questions ?? []);
   const gradingTotal = gradingQuestions.length;
-  const score = selected ? selected.questions.filter((q) => isCorrectAnswer(q, answers[q.id])).length : 0;
+  const score = serverScore ?? (selected ? selected.questions.filter((q) => isCorrectAnswer(q, answers[q.id])).length : 0);
   const notify = (message: string) => { setToast(message); setTimeout(() => setToast(''), 2600); };
   const isVisible = (id: string) => visibility[id] !== false;
 
   function start(e: FormEvent) { e.preventDefault(); if (!student.school || !student.studentId.trim() || !student.name.trim()) return notify('학생 정보를 모두 입력해 주세요.'); setView('subjects'); }
   function chooseSubject(subject: string) { setActiveBookSet(null); setSelectedSubject(subject); setView('sets'); window.scrollTo(0, 0); }
-  function choose(set: QuizSet) { setActiveBookSet(null); setSelectedId(set.id); setAnswers({}); setCurrent(0); setJumpNumber(''); setSubmitted(false); setView('quiz'); window.scrollTo(0, 0); }
+  function choose(set: QuizSet) {
+    const normalizedStudent = { ...student, studentId: student.studentId.trim(), name: student.name.trim() };
+    setStudent(normalizedStudent);
+    try {
+      const saved: SavedAttempt | null = JSON.parse(localStorage.getItem(attemptKey(normalizedStudent, set.id)) || 'null');
+      if (saved?.version === 1 && saved.set?.questions?.length && saved.attemptId) {
+        setActiveBookSet(saved.set); setSelectedId(saved.set.id); setAnswers(saved.answers); setCurrent(saved.current);
+        setAttemptId(saved.attemptId); setSubmitted(saved.submitted); setSubmittedAt(saved.submittedAt);
+        setServerScore(saved.serverScore);
+        setView(saved.submitted ? 'result' : 'quiz'); return;
+      }
+    } catch {}
+    const active = set.id === healthSet.id ? { ...set, questions: randomizeQuiz(set.questions, 20) } : set;
+    setServerScore(undefined);
+    setActiveBookSet(active); setSelectedId(active.id); setAttemptId(crypto.randomUUID());
+    setAnswers({}); setCurrent(0); setJumpNumber(''); setSubmitted(false); setSubmittedAt(''); setView('quiz'); window.scrollTo(0, 0);
+  }
   function chooseBookSubject(subjectId: string) { setBookSubjectId(subjectId); setView('chapters'); window.scrollTo(0, 0); }
   function chooseChapter(chapter: BookChapter, requestedSampleSize?: number) {
     if (!selectedBookSubject) return;
@@ -197,7 +251,7 @@ export default function Home() {
         answer: question.answer,
       })),
     };
-    setActiveBookSet(quizSet); setSelectedId(quizSet.id); setAnswers({}); setCurrent(0); setJumpNumber(''); setSubmitted(false); setView('quiz'); window.scrollTo(0, 0);
+    choose(quizSet);
   }
   function choosePublicHealthReview() {
     const publicHealth = bookSubjects.find((subject) => subject.id === 'public-health');
@@ -218,9 +272,9 @@ export default function Home() {
       published: true,
       questions: sampleItems(combinedQuestions, 30),
     };
-    setActiveBookSet(quizSet); setSelectedId(quizSet.id); setAnswers({}); setCurrent(0); setJumpNumber(''); setSubmitted(false); setView('quiz'); window.scrollTo(0, 0);
+    choose(quizSet);
   }
-  function returnToQuizSelection() { setView(activeBookSet?.id.startsWith('book-public-health-review-') ? 'reviewSets' : activeBookSet ? 'chapters' : 'sets'); window.scrollTo(0, 0); }
+  function returnToQuizSelection() { if (selectedId === healthSet.id || sets.some(s => s.id === selectedId)) { setView('sets'); return; } setView(activeBookSet?.id.startsWith('book-public-health-review-') ? 'reviewSets' : activeBookSet ? 'chapters' : 'sets'); window.scrollTo(0, 0); }
   function jumpToQuestion(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!selected || !allowsPartialSubmission) return;
@@ -247,7 +301,7 @@ export default function Home() {
   }
   async function submitQuiz() {
     if (!selected) return;
-    if (submittingRef.current) return;
+    if (submittingRef.current || submitted) return;
     if (allowsPartialSubmission && answeredQuestions.length === 0) return notify('한 문제 이상 응답한 뒤 제출해 주세요.');
     const unansweredIndex = allowsPartialSubmission ? -1 : selected.questions.findIndex((question) => answers[question.id] === undefined);
     if (unansweredIndex >= 0) {
@@ -259,13 +313,32 @@ export default function Home() {
     submittingRef.current = true;
     setSubmitting(true);
     const submittedDate = new Date();
-    const payload = { submittedAt: submittedDate.toISOString(), ...student, setId: selected.id, setTitle: selected.title, subject: selected.subject, score, total: gradingTotal, answers: gradingQuestions.map((q) => ({ questionId: q.id, selected: answers[q.id], correct: q.answer })) };
-    const endpoint = process.env.NEXT_PUBLIC_GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL;
+    let payload = { attemptId, submittedAt: submittedDate.toISOString(), ...student, setId: selected.id, setTitle: selected.title, subject: selected.subject, score, total: gradingTotal, questionIds: gradingQuestions.map(q => q.id), answers: gradingQuestions.map((q) => ({ questionId: q.id, selected: answers[q.id], originalSelected: q.optionOrder ? q.optionOrder[answers[q.id]] : answers[q.id], optionOrder: q.optionOrder, correct: q.answer })) };
     try {
-      if (endpoint) await fetch(endpoint, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
-      else { const demo = JSON.parse(localStorage.getItem('demo-submissions') || '[]'); localStorage.setItem('demo-submissions', JSON.stringify([...demo, payload])); }
-      setSubmittedAt(submittedDate.toLocaleString('ko-KR')); setSubmitted(true); setView('result');
-    } catch { notify('제출 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.'); }
+      // A timed-out request may already be saved. Retry the exact original
+      // payload, including after refresh, rather than silently changing it.
+      if (selected.id === healthSet.id) {
+        const pendingKey = `campus-pending:${attemptId}`;
+        const pending = localStorage.getItem(pendingKey);
+        if (pending) payload = JSON.parse(pending) as typeof payload;
+        else localStorage.setItem(pendingKey, JSON.stringify(payload));
+      }
+      const response = await fetch('/api/submissions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const result = await response.json() as { ok?: boolean; message?: string; attemptId?: string; score?: number; submittedAt?: string };
+      if (!response.ok || result.ok !== true) throw new Error(result.message || '저장을 확인하지 못했습니다.');
+      // A different attempt for this student/set must not display this attempt's score.
+      if (result.attemptId && result.attemptId !== attemptId) throw new Error('이미 제출한 회차입니다. 담당 교수님에게 확인해 주세요.');
+      const confirmedTime = result.submittedAt || submittedDate.toLocaleString('ko-KR');
+      const confirmedScore = selected.id === healthSet.id ? result.score : undefined;
+      const confirmedAnswers = Object.fromEntries(payload.answers.map(a => [a.questionId, a.selected]));
+      if (selected.id === healthSet.id && (!Number.isInteger(confirmedScore) || !result.attemptId)) throw new Error('저장 확인 응답을 확인해 주세요.');
+      try {
+        const key = attemptKey(student, selected.id);
+        localStorage.setItem(key, JSON.stringify({ version: 1, student, set: selected, answers: confirmedAnswers, current,
+          submitted: true, submittedAt: confirmedTime, attemptId, serverScore: confirmedScore } satisfies SavedAttempt));
+      } catch { notify('Google 저장은 완료했지만 이 기기에는 결과를 보존하지 못했습니다.'); }
+      setAnswers(confirmedAnswers); setServerScore(confirmedScore); setSubmittedAt(confirmedTime); setSubmitted(true); setView('result');
+    } catch (error) { notify((error instanceof Error ? error.message : '제출 저장에 실패했습니다.') + (selected.id === healthSet.id ? ' 재시도 시 최초 제출 답안을 사용합니다.' : '')); }
     finally { submittingRef.current = false; setSubmitting(false); }
   }
   function addSet(e: FormEvent) {
@@ -275,7 +348,7 @@ export default function Home() {
     if (!newSet.title || !newSet.subject || !questions.length) return notify('제목, 과목과 올바른 문제를 입력해 주세요.');
     const next = [...sets, { id: `set-${Date.now()}`, ...newSet, questions, published: true }]; setSets(next); localStorage.setItem('campus-quiz-sets-2025', JSON.stringify(next)); setNewSet({ title: '', subject: '', description: '', questions: '' }); notify('새 문제 세트가 공개되었습니다.');
   }
-  function reset() { setStudent({ school: '', studentId: '', name: '' }); setSelectedId(''); setSelectedSubject(''); setBookSubjectId(''); setActiveBookSet(null); setAnswers({}); setSubmittedAt(''); setView('start'); }
+  function reset() { try { localStorage.removeItem('campus-active-attempt'); } catch {} setAttemptId(''); setStudent({ school: '', studentId: '', name: '' }); setSelectedId(''); setSelectedSubject(''); setBookSubjectId(''); setActiveBookSet(null); setAnswers({}); setSubmittedAt(''); setView('start'); }
 
   async function downloadReviewPdf() {
     if (!selected) return;
@@ -386,7 +459,7 @@ export default function Home() {
 
     {view === 'chapters' && selectedBookSubject && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('bookSubjects')}>← 교재 과목 다시 선택</button><div className="mt-5"><p className="eyebrow">교재 문제</p><h1 className="text-3xl font-black tracking-tight">{selectedBookSubject.id === 'public-health' ? '공중보건학' : '의료관계법규'}</h1><p className="mt-2 text-[#667085]">학습할 챕터를 선택하세요.</p></div><div className="mt-7 grid gap-3">{selectedBookSubject.chapters.filter((chapter) => isVisible(`book-${selectedBookSubject.id}-${chapter.id}`)).map((chapter) => chapter.sampleSize ? <div key={chapter.id} className="card p-5"><div className="flex items-center gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#f1f4f8] font-black text-[#176b5b]">감염</span><span className="min-w-0 flex-1"><b className="block text-lg">{chapter.title}</b><small className="mt-1 block text-[#778195]">전체 {chapter.questions.length}문항에서 무작위 출제</small></span></div><div className="mt-4 flex items-end gap-2"><label className="min-w-0 flex-1 text-sm font-bold text-[#344054]">출제 문항 수<input type="number" inputMode="numeric" min={1} max={chapter.questions.length} value={infectiousQuestionCount} onChange={(e) => setInfectiousQuestionCount(Math.max(1, Math.min(Number(e.target.value) || 1, chapter.questions.length)))} className="mt-2 w-full rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-base text-[#101828]" /></label><button type="button" onClick={() => chooseChapter(chapter, infectiousQuestionCount)} className="primary shrink-0">랜덤 출제</button></div><div className="mt-3 flex flex-wrap gap-2">{[10, 20, 30, 50, 100].filter((count) => count <= chapter.questions.length).map((count) => <button type="button" key={count} onClick={() => setInfectiousQuestionCount(count)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${infectiousQuestionCount === count ? 'bg-[#176b5b] text-white' : 'bg-[#eef2f6] text-[#475467]'}`}>{count}문제</button>)}</div></div> : <button key={chapter.id} onClick={() => chooseChapter(chapter)} className="card flex items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:border-[#9ec7bd]"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#f1f4f8] font-black text-[#176b5b]">{chapter.number}</span><span className="min-w-0 flex-1"><b className="block text-lg">{chapter.title}</b><small className="mt-1 block text-[#778195]">{chapter.questions.length}문항</small></span><span className="text-[#176b5b]">→</span></button>)}</div></section>}
 
-    {view === 'sets' && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('subjects')}>← 파트 다시 선택</button><div className="mt-5"><p className="eyebrow">STEP 03</p><h1 className="text-3xl font-black tracking-tight">{selectedSubject === '의료관계법규' ? '의료법규' : selectedSubject} 문제</h1><p className="mt-2 text-[#667085]">풀 문제 세트를 선택하세요.</p></div><div className="mt-7 grid gap-4">{sets.filter((s) => s.published && isVisible(s.id) && s.subject === selectedSubject).map((set) => <button key={set.id} onClick={() => choose(set)} className="card flex items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:border-[#9ec7bd]"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#e7f3f0] text-xl">📘</span><span className="min-w-0 flex-1"><b className="block text-lg">{set.title}</b><small className="mt-1 block text-[#778195]">{set.description || set.subject} · {set.questions.length}문제</small></span><span className="text-[#176b5b]">→</span></button>)}</div></section>}
+    {view === 'sets' && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('subjects')}>← 파트 다시 선택</button><div className="mt-5"><p className="eyebrow">STEP 03</p><h1 className="text-3xl font-black tracking-tight">{selectedSubject === '의료관계법규' ? '의료법규' : selectedSubject} 문제</h1><p className="mt-2 text-[#667085]">풀 문제 세트를 선택하세요.</p></div>{!healthReady && selectedSubject === '공중보건' && <div className="card mt-6 p-5"><b>15장 특별 문제 — 보건지표</b><p className="mt-2 text-sm text-[#667085]">30문항 중 무작위 20문항 · 원문 확인 후 공개 예정</p></div>}<div className="mt-7 grid gap-4">{[...sets.filter(s => s.id !== healthSet.id), healthSet].filter((s) => s.published && isVisible(s.id) && s.subject === selectedSubject).map((set) => <button key={set.id} onClick={() => choose(set)} className="card flex items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:border-[#9ec7bd]"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#e7f3f0] text-xl">📘</span><span className="min-w-0 flex-1"><b className="block text-lg">{set.title}</b><small className="mt-1 block text-[#778195]">{set.description || set.subject} · {set.id === healthSet.id ? 20 : set.questions.length}문제</small></span><span className="text-[#176b5b]">→</span></button>)}</div></section>}
 
     {view === 'quiz' && selected && <section className="mx-auto max-w-3xl px-5 py-7"><div className="flex items-center justify-between text-sm"><button className="back" onClick={returnToQuizSelection}>← 나가기</button><b>{current + 1} / {selected.questions.length}</b></div>{allowsPartialSubmission && <form onSubmit={jumpToQuestion} className="mt-4 flex items-end gap-2"><label className="min-w-0 flex-1 text-sm font-bold text-[#344054]">문제 번호로 이동<input type="number" inputMode="numeric" min={1} max={selected.questions.length} step={1} value={jumpNumber} onChange={(e) => setJumpNumber(e.target.value)} placeholder={`1~${selected.questions.length}번`} className="mt-2 w-full rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-base text-[#101828]" /></label><button type="submit" className="secondary shrink-0">이동</button></form>}<div className="mt-5 h-2 overflow-hidden rounded-full bg-[#dfe5ee]"><div className="h-full rounded-full bg-[#176b5b] transition-all" style={{width:`${((current + 1) / selected.questions.length) * 100}%`}}/></div><div className="mt-6 card p-6 md:p-8"><p className="eyebrow">{selected.title}</p><h1 className="mt-3 whitespace-pre-line text-xl font-extrabold leading-8"><span className="mr-2 text-[#176b5b]">Q{current + 1}.</span>{selected.questions[current].text}</h1><div className="mt-7 grid gap-3">{selected.questions[current].options.map((option, i) => <button key={option} onClick={() => setAnswers({...answers, [selected.questions[current].id]:i})} className={`option ${answers[selected.questions[current].id] === i ? 'option-selected' : ''}`}><span>{i + 1}</span>{option}</button>)}</div></div><div className="mt-5 flex gap-3"><button disabled={current === 0} onClick={() => setCurrent(current - 1)} className="secondary disabled:opacity-40">이전</button><button disabled={current === selected.questions.length - 1} onClick={() => setCurrent(current + 1)} className="primary disabled:opacity-40">다음 문제</button></div>{allowsPartialSubmission && <p className="mt-4 rounded-xl bg-[#fff7e8] px-4 py-3 text-sm font-bold text-[#8a5a00]">의료관계법규 교재 문제는 원하는 만큼 풀고 제출할 수 있습니다. 현재 {answeredQuestions.length}문항 응답</p>}<button onClick={submitQuiz} disabled={submitting} className="submit-quiz mt-3 disabled:cursor-not-allowed disabled:opacity-60">{submitting ? '제출 중…' : allowsPartialSubmission ? `응답한 ${answeredQuestions.length}문항 제출하기` : '제출하기'}</button></section>}
 
