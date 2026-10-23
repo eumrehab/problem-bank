@@ -337,11 +337,11 @@ function saveHealthIndicatorSubmission_(data) {
   }
   const rows = sheet.getLastRow() > 1 ? sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues() : [];
   const existing = rows.find(function(row) {
-    return String(row[0]) === school && String(row[1]).replace(/^'/, '') === studentId && String(row[3]) === data.setId;
+    return String(row[10]) === String(data.attemptId);
   });
   if (existing) {
-    // Do not reveal a different student's result through an unauthenticated retry.
-    if (existing[10] !== data.attemptId) throw new Error('이 학교·학번은 해당 회차에 이미 제출했습니다.');
+    // Retrying the same request is idempotent. A new attempt ID is a valid
+    // repeat attempt and is stored as a new row below.
     return jsonResponse_({ ok: true, duplicate: true, attemptId: existing[10], score: existing[7], total: 20, submittedAt: existing[9] });
   }
   const timestamp = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm:ss');

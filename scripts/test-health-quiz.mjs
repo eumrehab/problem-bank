@@ -46,13 +46,14 @@ const payload = { setId: 'health-indicators-ch15-v1', attemptId: crypto.randomUU
 const submit = data => context.doPost({ postData: { contents: JSON.stringify(data) } });
 assert.equal(submit(payload).score, 20); assert.equal(rows.length, 2);
 assert.equal(submit(payload).duplicate, true); assert.equal(rows.length, 2);
-assert.equal(submit({ ...payload, attemptId: crypto.randomUUID() }).ok, false);
-assert.equal(rows.length, 2);
+const repeatAttempt = submit({ ...payload, attemptId: crypto.randomUUID() });
+assert.equal(repeatAttempt.ok, true); assert.equal(repeatAttempt.duplicate, false);
+assert.equal(rows.length, 3);
 assert.equal(rows[1][1], "'00123"); assert.equal(rows[1][2], "'=test");
 assert.equal(submit({ ...payload, school: 'other' }).ok, false);
 assert.equal(submit({ ...payload, questionIds: Array(20).fill(quiz[0].id) }).ok, false);
 assert.equal(submit({ ...payload, answers: payload.answers.map((a, i) => i === 0 ? { ...a, optionOrder: [0, 0, 0, 0, 0] } : a) }).ok, false);
-assert.equal(rows.length, 2);
+assert.equal(rows.length, 3);
 
 const previousEndpoint = process.env.GOOGLE_SCRIPT_URL;
 const originalFetch = globalThis.fetch;

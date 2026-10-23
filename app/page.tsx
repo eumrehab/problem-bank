@@ -210,11 +210,14 @@ export default function Home() {
     setStudent(normalizedStudent);
     try {
       const saved: SavedAttempt | null = JSON.parse(localStorage.getItem(attemptKey(normalizedStudent, set.id)) || 'null');
-      if (saved?.version === 1 && saved.set?.questions?.length && saved.attemptId) {
+      // Continue only an unfinished attempt. Once submitted, selecting the
+      // same set again must create a fresh attempt so students can review by
+      // repetition.
+      if (saved?.version === 1 && saved.set?.questions?.length && saved.attemptId && !saved.submitted) {
         setActiveBookSet(saved.set); setSelectedId(saved.set.id); setAnswers(saved.answers); setCurrent(saved.current);
         setAttemptId(saved.attemptId); setSubmitted(saved.submitted); setSubmittedAt(saved.submittedAt);
         setServerScore(saved.serverScore);
-        setView(saved.submitted ? 'result' : 'quiz'); return;
+        setView('quiz'); return;
       }
     } catch {}
     const active = set.id === healthSet.id ? { ...set, questions: randomizeQuiz(set.questions, 20) } : set;
