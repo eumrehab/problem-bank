@@ -34,7 +34,7 @@ function doPost(e) {
     const rootFolder = DriveApp.getFolderById(ROOT_FOLDER_ID);
     const schoolFolder = getOrCreateFolder_(rootFolder, convertSchoolName_(data.school));
     const subjectName = findSubjectName_(data.setId, data.subject, data.setTitle);
-    const subjectFolder = getOrCreateFolder_(schoolFolder, subjectName);
+    const subjectFolder = submissionFolder_(schoolFolder, data);
     const fileName = findFileName_(data.setId, subjectName, data.setTitle);
     const spreadsheet = getOrCreateSpreadsheet_(subjectFolder, fileName);
     const sheetName = findSheetName_(data.setId, data.setTitle);
@@ -158,6 +158,8 @@ function findSubjectName_(setId, suppliedSubject, setTitle) {
 function findFileName_(setId, subjectName, setTitle) {
   const id = normalizeRouteText_(setId);
 
+  if (id.indexOf('book-public-health-review-') === 0) return reviewFileName_(id);
+  if (id === '2024-edu-public-health') return '2024 에듀 모의고사';
   if (isBookSubmission_(setId, setTitle) && subjectName === '공중보건') return '교재 공중보건학';
   if (isBookSubmission_(setId, setTitle) && subjectName === '의료법규') return '교재 의료관계법규';
   if (id === '2025-public-health') return '2025공중보건';
@@ -168,6 +170,10 @@ function findFileName_(setId, subjectName, setTitle) {
 function findSheetName_(setId, setTitle) {
   const id = String(setId || '').toLowerCase();
 
+  if (id.indexOf('book-public-health-review-lecture-') === 0) {
+    // Include chapter selection and count instead of a potentially truncated title.
+    return safeSheetName_(id.replace('book-public-health-review-lecture-', '장별-'));
+  }
   if (id.indexOf('book-') === 0) {
     const parts = String(setTitle || '').split('·');
     return safeSheetName_((parts[parts.length - 1] || '교재 문제').trim());
@@ -178,6 +184,80 @@ function findSheetName_(setId, setTitle) {
 function getOrCreateFolder_(parentFolder, name) {
   const folders = parentFolder.getFoldersByName(name);
   return folders.hasNext() ? folders.next() : parentFolder.createFolder(name);
+}
+
+function partFolder_(schoolFolder, subject) {
+  const name = subject === '의료법규' ? 'Part 02 의료법규' : 'Part 01 공중보건';
+  const current = schoolFolder.getFoldersByName(name);
+  if (current.hasNext()) return current.next();
+  const legacy = schoolFolder.getFoldersByName(subject);
+  if (legacy.hasNext()) {
+    const folder = legacy.next();
+    folder.setName(name);
+    return folder;
+  }
+  return schoolFolder.createFolder(name);
+}
+
+function submissionFolder_(schoolFolder, data) {
+  const id = normalizeRouteText_(data.setId);
+  if (id.indexOf('book-public-health-review-') === 0 || id === 'health-indicators-ch15-v1') {
+    return getOrCreateFolder_(getOrCreateFolder_(schoolFolder, 'Part 03 문제은행'), '공중보건 종합 복습');
+  }
+  const subject = findSubjectName_(data.setId, data.subject, data.setTitle);
+  if (subject !== '공중보건' && subject !== '의료법규') return getOrCreateFolder_(schoolFolder, '기타 문제');
+  const part = partFolder_(schoolFolder, subject);
+  return getOrCreateFolder_(part, isBookSubmission_(data.setId, data.setTitle) ? '교재 문제' : '시험 문제');
+}
+
+function reviewFileName_(id) {
+  if (id.indexOf('review-lecture-') !== -1) return '강의안 장별 랜덤문제';
+  if (id.indexOf('review-infectious') !== -1) return '감염병';
+  if (id.indexOf('review-practice-50') !== -1) return '연습문제 50';
+  if (id.indexOf('review-core-30') !== -1) return '종합 랜덤 30문제';
+  if (id.indexOf('review-random-50') !== -1) return '공중보건 랜덤문제';
+  return '공중보건 종합 복습';
+}
+
+// Run once after deploying this version. Re-running is safe; no rows or sheets
+// are deleted. Unknown and mixed legacy files stay in place for review.
+function setupDriveFolders() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const root = DriveApp.getFolderById(ROOT_FOLDER_ID);
+    ['인제대', '동명대', '경남대'].forEach(function(school) {
+      const schoolFolder = getOrCreateFolder_(root, school);
+      ['공중보건', '의료법규'].forEach(function(subject) {
+        const part = partFolder_(schoolFolder, subject);
+        const bookFolder = getOrCreateFolder_(part, '교재 문제');
+        const examFolder = getOrCreateFolder_(part, '시험 문제');
+        const files = part.getFiles();
+        const moves = [];
+        while (files.hasNext()) {
+          const file = files.next();
+          if (file.getMimeType() !== MimeType.GOOGLE_SHEETS) continue;
+          const name = file.getName();
+          if (/^교재 /.test(name)) moves.push({ file: file, folder: bookFolder });
+          else if (/^(2025공중보건|2025의료법규|2024 에듀 모의고사)$/.test(name)) moves.push({ file: file, folder: examFolder });
+        }
+        moves.forEach(function(move) { move.file.moveTo(move.folder); });
+      });
+      const review = getOrCreateFolder_(getOrCreateFolder_(schoolFolder, 'Part 03 문제은행'), '공중보건 종합 복습');
+      // Clearly named standalone review files can be moved without touching data.
+      const part = partFolder_(schoolFolder, '공중보건');
+      const files = part.getFiles();
+      const moves = [];
+      while (files.hasNext()) {
+        const file = files.next();
+        if (['감염병', '연습문제 50', '공중보건 랜덤문제', '종합 랜덤 30문제'].indexOf(file.getName()) !== -1) moves.push(file);
+      }
+      moves.forEach(function(file) { file.moveTo(review); });
+    });
+    console.log('학교별 Part 01·02·03 폴더 준비 완료. 기존 혼합 시트와 기타 문제는 보존했습니다.');
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function getOrCreateSpreadsheet_(folder, name) {
@@ -262,6 +342,8 @@ function saveSubmission_(sheet, data) {
 
 function questionLabel_(questionId, fallbackIndex) {
   const id = String(questionId || '');
+  // Random pools can contain the same source number from different chapters.
+  if (/^(lecture-|ph200-)/.test(id)) return id;
   const number = id.split('-').pop();
   return /^\d+$/.test(number) ? number + '번' : '문항 ' + (fallbackIndex + 1);
 }
@@ -328,7 +410,9 @@ function saveHealthIndicatorSubmission_(data) {
     return { questionId: question.id, displayedSelected: answer.selected + 1,
       originalSelected: originalSelected + 1, originalCorrect: question.answer + 1, optionOrder: order.map(function(n) { return n + 1; }) };
   });
-  const folder = DriveApp.getFolderById(ROOT_FOLDER_ID);
+  const root = DriveApp.getFolderById(ROOT_FOLDER_ID);
+  const schoolFolder = getOrCreateFolder_(root, convertSchoolName_(school));
+  const folder = submissionFolder_(schoolFolder, data);
   const spreadsheet = getOrCreateSpreadsheet_(folder, '15장 특별 문제 — 보건지표 응답');
   const sheet = getOrCreateSheet_(spreadsheet, '응답');
   const headers = ['학교', '학번', '이름', '세트ID', '세트명', '20개 문항 ID', '응답JSON', '정답수', '점수(100점)', '제출시각', '응시ID'];
@@ -343,6 +427,17 @@ function saveHealthIndicatorSubmission_(data) {
     // Retrying the same request is idempotent. A new attempt ID is a valid
     // repeat attempt and is stored as a new row below.
     return jsonResponse_({ ok: true, duplicate: true, attemptId: existing[10], score: existing[7], total: 20, submittedAt: existing[9] });
+  }
+  // A timeout retry for an attempt saved before the folder change must still
+  // find the old durable record. Keep the aggregate source file unchanged.
+  const legacyFiles = root.getFilesByName('15장 특별 문제 — 보건지표 응답');
+  while (legacyFiles.hasNext()) {
+    const legacy = SpreadsheetApp.openById(legacyFiles.next().getId()).getSheetByName('응답');
+    if (!legacy || legacy.getLastRow() < 2) continue;
+    const prior = legacy.getRange(2, 1, legacy.getLastRow() - 1, headers.length).getValues().find(function(row) {
+      return String(row[10]) === String(data.attemptId);
+    });
+    if (prior) return jsonResponse_({ ok: true, duplicate: true, attemptId: prior[10], score: prior[7], total: 20, submittedAt: prior[9] });
   }
   const timestamp = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm:ss');
   // Prefix user-entered cells to retain leading zeroes and prevent formulas.
