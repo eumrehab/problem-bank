@@ -3,14 +3,13 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import bookQuestionBank from './book-question-bank.json';
 import { infectiousDiseaseQuestions } from './infectious-disease-question-bank';
-import { practice50Questions } from './practice-50-question-bank';
 import { edu2024Questions } from './edu-2024-question-bank';
-import publicHealthRandomBank from './public-health-random-bank.json';
 import publicHealthChapterReviewBank from './public-health-chapter-review-bank.json';
+import medicalLawReviewBank from './medical-law-review-bank.json';
 import healthBank from './health-indicators.json';
 import { randomizeQuiz, validateHealthBank } from './quiz-random';
 
-type Question = { id: string; text: string; options: string[]; answer: number | number[]; optionOrder?: number[] };
+type Question = { id: string; text: string; options: string[]; answer: number | number[]; optionOrder?: number[]; explanation?: string; sourceReference?: string };
 type QuizSet = { id: string; title: string; subject: string; description: string; questions: Question[]; published: boolean };
 type Student = { school: string; studentId: string; name: string };
 type BookQuestion = { id: number; prompt: string; options: string[]; answer: number | number[] };
@@ -107,21 +106,13 @@ const infectiousDiseaseChapter: BookChapter = {
   questions: infectiousDiseaseQuestions,
   sampleSize: 30,
 };
-const practice50Chapter: BookChapter = {
-  id: 'public-practice-50',
-  number: 17,
-  title: '연습문제 50',
-  questions: practice50Questions,
-};
 const bookSubjects: BookSubject[] = baseBookSubjects;
 const chapterReviewBank = publicHealthChapterReviewBank as ChapterReviewBank[];
 const reviewVisibilityItems = [
+  { id: 'book-medical-law-review-200', title: '의료법규 종합 복습', detail: '1~4장 · 각 50문항 · 총 200문항' },
   { id: 'book-public-health-review-lecture', title: '강의안 장별 랜덤문제', detail: '11개 장 · 각 50문항' },
   { id: healthSet.id, title: '15장 특별문제 · 보건지표', detail: '30문항 중 20문항 랜덤' },
   { id: 'book-public-health-review-infectious', title: '감염병', detail: '100문항 중 선택 출제' },
-  { id: 'book-public-health-review-random-50', title: '공중보건 랜덤문제', detail: '400문항 중 50문항 랜덤' },
-  { id: 'book-public-health-review-core-30', title: '종합 랜덤 30문제', detail: '1~3장·감염병·산업보건' },
-  { id: 'book-public-health-review-practice-50', title: '연습문제 50', detail: '50문항' },
 ];
 const ADMIN_ID = 'admin';
 const ADMIN_PASSWORD = 'admin';
@@ -146,7 +137,7 @@ function sampleItems<T>(items: T[], count: number) {
 }
 
 export default function Home() {
-  const [view, setView] = useState<'start'|'subjects'|'partMenu'|'sets'|'bookSubjects'|'chapters'|'reviewSets'|'quiz'|'result'|'admin'>('start');
+  const [view, setView] = useState<'start'|'subjects'|'partMenu'|'sets'|'bookSubjects'|'chapters'|'reviewSets'|'lawReview'|'quiz'|'result'|'admin'>('start');
   const [student, setStudent] = useState<Student>({ school: '', studentId: '', name: '' });
   const [sets, setSets] = useState<QuizSet[]>(defaultSets);
   const [selectedId, setSelectedId] = useState('');
@@ -159,6 +150,8 @@ export default function Home() {
   const [infectiousQuestionCount, setInfectiousQuestionCount] = useState(30);
   const [chapterReviewQuestionCount, setChapterReviewQuestionCount] = useState(20);
   const [selectedReviewChapters, setSelectedReviewChapters] = useState<number[]>([1]);
+  const [lawReviewChapters, setLawReviewChapters] = useState<number[]>([1]);
+  const [lawReviewCount, setLawReviewCount] = useState(20);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
@@ -286,6 +279,19 @@ export default function Home() {
     };
     choose(quizSet);
   }
+  function chooseMedicalLawReview() {
+    const chapters = medicalLawReviewBank.filter((chapter) => lawReviewChapters.includes(chapter.chapter));
+    const count = Math.max(1, Math.min(lawReviewCount, chapters.length * 50));
+    const questions: Question[] = chapters.flatMap((chapter) => chapter.questions.map((question) => ({
+      id: question.id, text: `【제${chapter.chapter}장 ${chapter.title}】\n${question.prompt}`,
+      options: question.options, answer: question.answer,
+      explanation: question.explanation, sourceReference: question.sourceReference,
+    })));
+    choose({ id: `book-medical-law-review-200-${lawReviewChapters.join('-')}-${count}`,
+      title: `의료법규 종합 복습 · ${lawReviewChapters.map((chapter) => `${chapter}장`).join('·')} · ${count}문제`,
+      subject: '의료관계법규', description: '의료관계법규 1~4장 200문항 · 제공 문서 정답·해설',
+      questions: sampleItems(questions, count), published: true });
+  }
   function toggleReviewChapter(chapter: number) {
     setSelectedReviewChapters((currentChapters) => {
       if (currentChapters.includes(chapter)) {
@@ -314,27 +320,6 @@ export default function Home() {
       questions: sampleItems(combinedQuestions, count),
     });
   }
-  function choosePublicHealthReview() {
-    const publicHealth = bookSubjects.find((subject) => subject.id === 'public-health');
-    if (!publicHealth) return;
-    const sourceChapterNumbers = new Set([1, 2, 3, 8]);
-    const sourceChapters = [...publicHealth.chapters.filter((chapter) => sourceChapterNumbers.has(chapter.number)), infectiousDiseaseChapter];
-    const combinedQuestions: Question[] = sourceChapters.flatMap((chapter) => chapter.questions.map((question) => ({
-      id: `book-public-health-review-${chapter.id}-${question.id}`,
-      text: `【${chapter.id === infectiousDiseaseChapter.id ? '감염병' : `${chapter.number}장 ${chapter.title}`}】\n${question.prompt}`,
-      options: question.options,
-      answer: question.answer,
-    })));
-    const quizSet: QuizSet = {
-      id: 'book-public-health-review-core-30',
-      title: '학습 정리 · 공중보건 종합 랜덤 30문제',
-      subject: '공중보건학',
-      description: '1~3장·감염병·산업보건 종합 복습',
-      published: true,
-      questions: sampleItems(combinedQuestions, 30),
-    };
-    choose(quizSet);
-  }
   function chooseInfectiousDiseaseReview() {
     const count = Math.max(1, Math.min(infectiousQuestionCount, infectiousDiseaseChapter.questions.length));
     choose({
@@ -351,38 +336,7 @@ export default function Home() {
       })),
     });
   }
-  function choosePractice50Review() {
-    choose({
-      id: 'book-public-health-review-practice-50',
-      title: '공중보건 종합 복습 · 연습문제 50',
-      subject: '공중보건학',
-      description: '공중보건 연습문제 50문항',
-      published: true,
-      questions: practice50Chapter.questions.map((question) => ({
-        id: `book-public-health-review-practice-${question.id}`,
-        text: question.prompt,
-        options: question.options,
-        answer: question.answer,
-      })),
-    });
-  }
-  function choosePublicHealthRandom50() {
-    const source = publicHealthRandomBank as Array<{ id: string; prompt: string; options: string[]; answer: number }>;
-    choose({
-      id: 'book-public-health-review-random-50',
-      title: '공중보건 종합 복습 · 공중보건 랜덤문제',
-      subject: '공중보건학',
-      description: '공중보건 400문항 중 무작위 50문항',
-      published: true,
-      questions: sampleItems(source, 50).map((question) => ({
-        id: question.id,
-        text: question.prompt,
-        options: question.options,
-        answer: question.answer,
-      })),
-    });
-  }
-  function returnToQuizSelection() { if (selectedId === healthSet.id) { setView('reviewSets'); return; } if (sets.some(s => s.id === selectedId)) { setView('sets'); return; } setView(activeBookSet?.id.startsWith('book-public-health-review-') ? 'reviewSets' : activeBookSet ? 'chapters' : 'sets'); window.scrollTo(0, 0); }
+  function returnToQuizSelection() { if (selectedId.startsWith('book-medical-law-review-200-')) { setView('lawReview'); return; } if (selectedId === healthSet.id) { setView('reviewSets'); return; } if (sets.some(s => s.id === selectedId)) { setView('sets'); return; } setView(activeBookSet?.id.startsWith('book-public-health-review-') ? 'reviewSets' : activeBookSet ? 'chapters' : 'sets'); window.scrollTo(0, 0); }
   function jumpToQuestion(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!selected || !allowsPartialSubmission) return;
@@ -566,17 +520,16 @@ export default function Home() {
 
     {view === 'partMenu' && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('subjects')}>← 파트 다시 선택</button><div className="mt-5"><p className="eyebrow">{selectedSubject === '공중보건' ? 'PART 01' : 'PART 02'}</p><h1 className="text-3xl font-black tracking-tight">{selectedSubject === '공중보건' ? '공중보건' : '의료법규'}</h1><p className="mt-2 text-[#667085]">학습할 문제 폴더를 선택하세요.</p></div><div className="mt-7 grid gap-4 sm:grid-cols-2"><button onClick={() => setView('sets')} className="subject-card card p-6 text-left"><span className={`grid h-14 w-14 place-items-center rounded-2xl text-3xl ${selectedSubject === '공중보건' ? 'bg-[#e7f3f0]' : 'bg-[#eef1ff]'}`}>📝</span><h2 className="mt-5 text-2xl font-black">시험 문제</h2><p className="mt-2 text-sm leading-6 text-[#667085]">국가시험과 모의고사 문제를 풉니다.</p><b className="mt-6 block text-[#176b5b]">시험 문제 선택하기 →</b></button><button onClick={choosePartBookQuestions} className="subject-card card p-6 text-left"><span className={`grid h-14 w-14 place-items-center rounded-2xl text-3xl ${selectedSubject === '공중보건' ? 'bg-[#e7f3f0]' : 'bg-[#eef1ff]'}`}>📚</span><h2 className="mt-5 text-2xl font-black">교재 문제</h2><p className="mt-2 text-sm leading-6 text-[#667085]">{selectedSubject === '공중보건' ? '공중보건학' : '의료관계법규'} 교재의 장별 문제를 풉니다.</p><b className="mt-6 block text-[#176b5b]">교재 문제 선택하기 →</b></button></div></section>}
 
-    {view === 'bookSubjects' && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('subjects')}>← 파트 다시 선택</button><div className="mt-5"><p className="eyebrow">PART 03</p><h1 className="text-3xl font-black tracking-tight">문제은행</h1><p className="mt-2 text-[#667085]">여러 영역을 섞어 풀거나 원하는 문항 수로 반복 학습합니다.</p></div></section>}
+    {view === 'bookSubjects' && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('subjects')}>← 파트 다시 선택</button><div className="mt-5"><p className="eyebrow">PART 03</p><h1 className="text-3xl font-black tracking-tight">문제은행</h1><p className="mt-2 text-[#667085]">여러 영역을 섞어 풀거나 원하는 문항 수로 반복 학습합니다.</p></div>{isVisible('book-medical-law-review-200') && <button onClick={() => setView('lawReview')} className="subject-card card mt-7 w-full p-6 text-left"><span className="text-3xl">⚖️</span><b className="mt-3 block text-xl">의료법규 종합 복습</b><small className="mt-2 block text-[#667085]">1~4장 각 50문항 · 총 200문항 · 정답과 해설</small><strong className="mt-4 block text-[#176b5b]">영역과 문항 수 선택하기 →</strong></button>}</section>}
+
+    {view === 'lawReview' && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('bookSubjects')}>← 문제은행으로 돌아가기</button><h1 className="mt-5 text-3xl font-black">의료법규 종합 복습</h1><p className="mt-2 text-[#667085]">학습할 장과 문항 수를 선택하세요. 여러 장을 섞어서 풀 수 있습니다.</p><div className="card mt-7 p-5"><div className="grid gap-2 sm:grid-cols-2">{medicalLawReviewBank.map((chapter) => { const active = lawReviewChapters.includes(chapter.chapter); return <button key={chapter.chapter} type="button" aria-pressed={active} onClick={() => { const next = active ? lawReviewChapters.filter((number) => number !== chapter.chapter) : [...lawReviewChapters, chapter.chapter].sort((a, b) => a - b); if (next.length) { setLawReviewChapters(next); setLawReviewCount(Math.min(lawReviewCount, next.length * 50)); } }} className={`rounded-xl border p-4 text-left ${active ? 'border-[#176b5b] bg-[#e7f3f0]' : 'border-[#d0d5dd] bg-white'}`}><b className="block">제{chapter.chapter}장 {chapter.title}</b><small className="mt-1 block text-[#667085]">50문항</small></button>; })}</div><label className="mt-5 block text-sm font-bold">출제 문항 수<input className="field mt-2" type="number" inputMode="numeric" min={1} max={lawReviewChapters.length * 50} value={lawReviewCount} onChange={(e) => setLawReviewCount(Math.max(1, Math.min(Number(e.target.value) || 1, lawReviewChapters.length * 50)))} /></label><div className="mt-3 flex flex-wrap gap-2">{[10, 20, 30, 50, 100, 200].filter((count) => count <= lawReviewChapters.length * 50).map((count) => <button key={count} type="button" onClick={() => setLawReviewCount(count)} className={`rounded-full px-3 py-2 text-sm font-bold ${lawReviewCount === count ? 'bg-[#176b5b] text-white' : 'bg-[#eef2f6] text-[#475467]'}`}>{count}문제</button>)}</div><button type="button" onClick={chooseMedicalLawReview} className="primary mt-5">랜덤 문제 시작하기 →</button><p className="mt-3 text-sm text-[#667085]">제출 후 제공 문서의 정답과 해설을 확인할 수 있습니다.</p></div></section>}
 
     {view === 'bookSubjects' && <section className="mx-auto -mt-5 max-w-3xl px-5 pb-9"><button onClick={() => setView('reviewSets')} className="subject-card card w-full p-6 text-left"><div className="flex items-center gap-4"><span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#fff2dc] text-3xl">🗂️</span><span className="min-w-0 flex-1"><span className="eyebrow">문제은행</span><b className="mt-1 block text-xl">공중보건 종합 복습</b><small className="mt-1 block leading-5 text-[#667085]">감염병 · 장별 강의안 · 특별문제를 원하는 문항 수로 학습</small></span><span className="text-[#176b5b]">→</span></div></button></section>}
 
     {view === 'reviewSets' && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('bookSubjects')}>← 문제은행으로 돌아가기</button><div className="mt-5"><p className="eyebrow">문제은행 · 종합복습</p><h1 className="text-3xl font-black tracking-tight">공중보건 종합 복습</h1><p className="mt-2 text-[#667085]">원하는 영역과 출제 문항 수를 선택해 반복 학습합니다.</p></div><div className="mt-7 grid gap-4">
       {isVisible('book-public-health-review-lecture') && <div className="card p-5"><div className="flex items-center gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#e7f3f0] text-lg font-black text-[#176b5b]">장별</span><span className="min-w-0 flex-1"><b className="block text-lg">강의안 장별 랜덤문제</b><small className="mt-1 block text-[#778195]">각 장 50문항 · 여러 영역을 함께 선택할 수 있습니다.</small></span></div><div className="mt-5"><p className="text-sm font-extrabold text-[#344054]">학습 영역 선택</p><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">{chapterReviewBank.map((bank) => { const active = selectedReviewChapters.includes(bank.chapter); return <button type="button" key={bank.chapter} onClick={() => toggleReviewChapter(bank.chapter)} aria-pressed={active} className={`rounded-xl border px-3 py-2.5 text-left text-sm font-bold transition ${active ? 'border-[#176b5b] bg-[#e7f3f0] text-[#14594d]' : 'border-[#d0d5dd] bg-white text-[#475467]'}`}><span className="block">제{bank.chapter}장</span><small className="mt-0.5 block truncate font-semibold opacity-80">{bank.title}</small></button>; })}</div></div><div className="mt-5 flex items-end gap-2"><label className="min-w-0 flex-1 text-sm font-bold text-[#344054]">출제 문항 수<input type="number" inputMode="numeric" min={1} max={selectedReviewChapters.length * 50} value={chapterReviewQuestionCount} onChange={(e) => setChapterReviewQuestionCount(Math.max(1, Math.min(Number(e.target.value) || 1, selectedReviewChapters.length * 50)))} className="mt-2 w-full rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-base text-[#101828]" /></label><button type="button" onClick={chooseLectureChapterReview} className="primary shrink-0">랜덤 출제</button></div><div className="mt-3 flex flex-wrap gap-2">{[10, 20, 30, 40, 50].filter((count) => count <= selectedReviewChapters.length * 50).map((count) => <button type="button" key={count} onClick={() => setChapterReviewQuestionCount(count)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${chapterReviewQuestionCount === count ? 'bg-[#176b5b] text-white' : 'bg-[#eef2f6] text-[#475467]'}`}>{count}문제</button>)}</div></div>}
       {healthReady && isVisible(healthSet.id) && <button onClick={() => choose(healthSet)} className="subject-card card w-full p-6 text-left"><div className="flex items-center gap-4"><span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#eef1ff] text-xl">📊</span><span className="min-w-0 flex-1"><b className="block text-xl">15장 특별문제 · 보건지표</b><small className="mt-2 block leading-5 text-[#667085]">30문항 중 무작위 20문항 출제</small><strong className="mt-4 block text-[#176b5b]">특별문제 시작하기 →</strong></span></div></button>}
-      {isVisible('book-public-health-review-random-50') && <button onClick={choosePublicHealthRandom50} className="subject-card card w-full p-6 text-left"><div className="flex items-center gap-4"><span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#e7f3f0] text-2xl font-black">50</span><span className="min-w-0 flex-1"><b className="block text-xl">공중보건 랜덤문제</b><small className="mt-2 block leading-5 text-[#667085]">공중보건 200문항 1·2의 전체 400문항에서 매번 무작위 50문항 출제</small><strong className="mt-4 block text-[#176b5b]">랜덤 50문제 시작하기 →</strong></span></div></button>}
-      {isVisible('book-public-health-review-core-30') && <button onClick={choosePublicHealthReview} className="subject-card card w-full p-6 text-left"><div className="flex items-center gap-4"><span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#e7f3f0] text-2xl">30</span><span className="min-w-0 flex-1"><b className="block text-xl">종합 랜덤 30문제</b><small className="mt-2 block leading-5 text-[#667085]">1장 공중보건학의 이해 · 2장 건강과 질병 · 3장 역학과 질병 관리 · 감염병 · 8장 산업보건</small><strong className="mt-4 block text-[#176b5b]">새 문제로 시작하기 →</strong></span></div></button>}
       {isVisible('book-public-health-review-infectious') && <div className="card p-5"><div className="flex items-center gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#f1f4f8] font-black text-[#176b5b]">감염</span><span className="min-w-0 flex-1"><b className="block text-lg">감염병</b><small className="mt-1 block text-[#778195]">전체 {infectiousDiseaseChapter.questions.length}문항에서 무작위 출제</small></span></div><div className="mt-4 flex items-end gap-2"><label className="min-w-0 flex-1 text-sm font-bold text-[#344054]">출제 문항 수<input type="number" inputMode="numeric" min={1} max={infectiousDiseaseChapter.questions.length} value={infectiousQuestionCount} onChange={(e) => setInfectiousQuestionCount(Math.max(1, Math.min(Number(e.target.value) || 1, infectiousDiseaseChapter.questions.length)))} className="mt-2 w-full rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-base text-[#101828]" /></label><button type="button" onClick={chooseInfectiousDiseaseReview} className="primary shrink-0">랜덤 출제</button></div><div className="mt-3 flex flex-wrap gap-2">{[10, 20, 30, 50, 100].map((count) => <button type="button" key={count} onClick={() => setInfectiousQuestionCount(count)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${infectiousQuestionCount === count ? 'bg-[#176b5b] text-white' : 'bg-[#eef2f6] text-[#475467]'}`}>{count}문제</button>)}</div></div>}
-      {isVisible('book-public-health-review-practice-50') && <button onClick={choosePractice50Review} className="subject-card card w-full p-6 text-left"><div className="flex items-center gap-4"><span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#fff2dc] text-2xl font-black">50</span><span className="min-w-0 flex-1"><b className="block text-xl">연습문제 50</b><small className="mt-2 block leading-5 text-[#667085]">공중보건 연습문제 50문항</small><strong className="mt-4 block text-[#176b5b]">문제 풀기 →</strong></span></div></button>}
     </div></section>}
 
     {view === 'chapters' && selectedBookSubject && <section className="mx-auto max-w-3xl px-5 py-9"><button className="back" onClick={() => setView('partMenu')}>← 과목 폴더로 돌아가기</button><div className="mt-5"><p className="eyebrow">교재 문제</p><h1 className="text-3xl font-black tracking-tight">{selectedBookSubject.id === 'public-health' ? '공중보건학' : '의료관계법규'}</h1><p className="mt-2 text-[#667085]">학습할 챕터를 선택하세요.</p></div><div className="mt-7 grid gap-3">{selectedBookSubject.chapters.filter((chapter) => isVisible(`book-${selectedBookSubject.id}-${chapter.id}`)).map((chapter) => chapter.sampleSize ? <div key={chapter.id} className="card p-5"><div className="flex items-center gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#f1f4f8] font-black text-[#176b5b]">감염</span><span className="min-w-0 flex-1"><b className="block text-lg">{chapter.title}</b><small className="mt-1 block text-[#778195]">전체 {chapter.questions.length}문항에서 무작위 출제</small></span></div><div className="mt-4 flex items-end gap-2"><label className="min-w-0 flex-1 text-sm font-bold text-[#344054]">출제 문항 수<input type="number" inputMode="numeric" min={1} max={chapter.questions.length} value={infectiousQuestionCount} onChange={(e) => setInfectiousQuestionCount(Math.max(1, Math.min(Number(e.target.value) || 1, chapter.questions.length)))} className="mt-2 w-full rounded-xl border border-[#d0d5dd] bg-white px-4 py-3 text-base text-[#101828]" /></label><button type="button" onClick={() => chooseChapter(chapter, infectiousQuestionCount)} className="primary shrink-0">랜덤 출제</button></div><div className="mt-3 flex flex-wrap gap-2">{[10, 20, 30, 50, 100].filter((count) => count <= chapter.questions.length).map((count) => <button type="button" key={count} onClick={() => setInfectiousQuestionCount(count)} className={`rounded-full px-3 py-1.5 text-sm font-bold ${infectiousQuestionCount === count ? 'bg-[#176b5b] text-white' : 'bg-[#eef2f6] text-[#475467]'}`}>{count}문제</button>)}</div></div> : <button key={chapter.id} onClick={() => chooseChapter(chapter)} className="card flex items-center gap-4 p-5 text-left transition hover:-translate-y-0.5 hover:border-[#9ec7bd]"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#f1f4f8] font-black text-[#176b5b]">{chapter.number}</span><span className="min-w-0 flex-1"><b className="block text-lg">{chapter.title}</b><small className="mt-1 block text-[#778195]">{chapter.questions.length}문항</small></span><span className="text-[#176b5b]">→</span></button>)}</div></section>}
@@ -587,7 +540,7 @@ export default function Home() {
 
     {view === 'result' && selected && submitted && <section className="mx-auto max-w-3xl px-5 py-12"><div className="card p-8 text-center"><div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#e1f3ed] text-4xl">✓</div><p className="eyebrow mt-6">제출 완료</p><h1 className="mt-2 text-3xl font-black">수고했어요, {student.name}님!</h1><p className="mt-3 text-[#667085]">{selected.title} 답안이 안전하게 저장되었습니다.</p><div className="mx-auto my-7 grid h-36 w-36 place-items-center rounded-full border-[10px] border-[#dff0eb]"><div><b className="text-4xl text-[#176b5b]">{score}</b><span className="text-lg text-[#7a8496]"> / {gradingTotal}</span><small className="mt-1 block text-[#7a8496]">{allowsPartialSubmission ? '응답 문항 기준' : '정답 수'}</small></div></div><div className="grid gap-3 sm:grid-cols-2"><button onClick={downloadReviewPdf} disabled={pdfBusy} className="primary disabled:opacity-60">{pdfBusy ? 'PDF 만드는 중…' : '응답 문제 PDF 받기'}</button><button onClick={returnToQuizSelection} className="secondary">다른 문제 풀기</button></div><button onClick={reset} className="mt-3 w-full py-3 text-sm font-bold text-[#667085]">처음으로 돌아가기</button></div>
       <div className="mt-7 rounded-[1.35rem] bg-white p-5 text-left md:p-8"><div id="review-header" className="border-b border-[#dfe5ee] bg-white pb-6"><p className="eyebrow">응답 문제 복습노트</p><h2 className="mt-2 text-2xl font-black">{selected.title}</h2><table className="review-info-table mt-4"><tbody><tr><th>학교</th><td>{student.school}</td><th>학번</th><td>{student.studentId}</td></tr><tr><th>이름</th><td>{student.name}</td><th>시험명</th><td>{selected.title}</td></tr><tr><th>점수</th><td>{score}/{gradingTotal}점</td><th>제출 일시</th><td>{submittedAt}</td></tr></tbody></table><div className="mt-4 flex flex-wrap gap-3 text-xs font-bold"><span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">파랑: 정답</span><span className="rounded-full bg-red-50 px-3 py-1 text-red-600">빨강: 틀리게 선택한 답</span></div></div>
-        <div className="mt-6 grid gap-7">{gradingQuestions.map((q) => { const selectedAnswer = answers[q.id]; const sourceNumber = q.id.split('-').pop(); const correctIndexes = correctAnswerIndexes(q); const isCorrect = isCorrectAnswer(q, selectedAnswer); return <article key={q.id} className="review-question pdf-question bg-white"><div className="flex items-start justify-between gap-3"><h3 className="whitespace-pre-line font-extrabold leading-7"><span className={`mr-2 ${isCorrect ? 'text-blue-700' : 'text-red-600'}`}>{sourceNumber}번</span>{q.text}</h3><b className={`shrink-0 text-sm ${isCorrect ? 'text-blue-700' : 'text-red-600'}`}>{isCorrect ? '정답' : '오답'}</b></div><ol className="mt-4 grid gap-1">{q.options.map((option, index) => { const isAnswer = correctIndexes.includes(index); const isSelected = index === selectedAnswer; return <li key={option} className={`review-option ${isAnswer ? 'review-correct' : ''} ${isSelected && !isAnswer ? 'review-wrong' : ''}`}><span>{index + 1}.</span><p>{option}</p>{isAnswer && <b>{isSelected ? '내 답 · 정답' : '정답'}</b>}{isSelected && !isAnswer && <b>내 답</b>}</li>; })}</ol><div className="mt-4 grid gap-1 border-l-2 border-[#dfe5ee] pl-4 text-sm sm:grid-cols-2"><p className={isCorrect ? 'text-blue-700' : 'text-red-600'}><b>내가 선택한 답:</b> {selectedAnswer === undefined ? '미응답' : `${selectedAnswer + 1}번 ${q.options[selectedAnswer]}`}</p><p className="text-blue-700"><b>정답:</b> {correctAnswerText(q)}</p></div></article>; })}</div>
+        <div className="mt-6 grid gap-7">{gradingQuestions.map((q) => { const selectedAnswer = answers[q.id]; const sourceNumber = q.id.split('-').pop(); const correctIndexes = correctAnswerIndexes(q); const isCorrect = isCorrectAnswer(q, selectedAnswer); return <article key={q.id} className="review-question pdf-question bg-white"><div className="flex items-start justify-between gap-3"><h3 className="whitespace-pre-line font-extrabold leading-7"><span className={`mr-2 ${isCorrect ? 'text-blue-700' : 'text-red-600'}`}>{sourceNumber}번</span>{q.text}</h3><b className={`shrink-0 text-sm ${isCorrect ? 'text-blue-700' : 'text-red-600'}`}>{isCorrect ? '정답' : '오답'}</b></div><ol className="mt-4 grid gap-1">{q.options.map((option, index) => { const isAnswer = correctIndexes.includes(index); const isSelected = index === selectedAnswer; return <li key={option} className={`review-option ${isAnswer ? 'review-correct' : ''} ${isSelected && !isAnswer ? 'review-wrong' : ''}`}><span>{index + 1}.</span><p>{option}</p>{isAnswer && <b>{isSelected ? '내 답 · 정답' : '정답'}</b>}{isSelected && !isAnswer && <b>내 답</b>}</li>; })}</ol><div className="mt-4 grid gap-1 border-l-2 border-[#dfe5ee] pl-4 text-sm sm:grid-cols-2"><p className={isCorrect ? 'text-blue-700' : 'text-red-600'}><b>내가 선택한 답:</b> {selectedAnswer === undefined ? '미응답' : `${selectedAnswer + 1}번 ${q.options[selectedAnswer]}`}</p><p className="text-blue-700"><b>정답:</b> {correctAnswerText(q)}</p></div>{q.explanation && <div className="mt-4 border-t border-[#dfe5ee] pt-4 text-sm leading-6 text-[#475467]"><b className="text-[#176b5b]">해설</b><p className="mt-1 whitespace-pre-line">{q.explanation}</p>{q.sourceReference && <p className="mt-2 text-xs text-[#778195]">{q.sourceReference}</p>}</div>}</article>; })}</div>
         <p className="mt-8 border-t border-[#dfe5ee] pt-4 text-center text-xs text-[#8a94a6]">캠퍼스 문제은행 · 자율학습 오답노트</p>
       </div>
     </section>}

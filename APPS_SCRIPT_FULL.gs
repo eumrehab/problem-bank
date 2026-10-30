@@ -159,6 +159,7 @@ function findFileName_(setId, subjectName, setTitle) {
   const id = normalizeRouteText_(setId);
 
   if (id.indexOf('book-public-health-review-') === 0) return reviewFileName_(id);
+  if (id.indexOf('book-medical-law-review-200-') === 0) return '의료법규 1~4장 200문항';
   if (id === '2024-edu-public-health') return '2024 에듀 모의고사';
   if (isBookSubmission_(setId, setTitle) && subjectName === '공중보건') return '교재 공중보건학';
   if (isBookSubmission_(setId, setTitle) && subjectName === '의료법규') return '교재 의료관계법규';
@@ -169,6 +170,7 @@ function findFileName_(setId, subjectName, setTitle) {
 
 function findSheetName_(setId, setTitle) {
   const id = String(setId || '').toLowerCase();
+  if (id.indexOf('book-medical-law-review-200-') === 0) return safeSheetName_(id.replace('book-medical-law-review-200-', '장별-'));
 
   if (id.indexOf('book-public-health-review-lecture-') === 0) {
     // Include chapter selection and count instead of a potentially truncated title.
@@ -201,6 +203,9 @@ function partFolder_(schoolFolder, subject) {
 
 function submissionFolder_(schoolFolder, data) {
   const id = normalizeRouteText_(data.setId);
+  if (id.indexOf('book-medical-law-review-200-') === 0) {
+    return getOrCreateFolder_(getOrCreateFolder_(schoolFolder, 'Part 03 문제은행'), '의료법규 종합 복습');
+  }
   if (id.indexOf('book-public-health-review-') === 0 || id === 'health-indicators-ch15-v1') {
     return getOrCreateFolder_(getOrCreateFolder_(schoolFolder, 'Part 03 문제은행'), '공중보건 종합 복습');
   }
